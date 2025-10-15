@@ -211,7 +211,7 @@ export default function RequestScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F5F5F5" />
+      <StatusBar barStyle="dark-content" backgroundColor="#9BD7CD" />
       
       {/* Header */}
       <View style={styles.header}>
@@ -284,7 +284,7 @@ export default function RequestScreen() {
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
         <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="home" size={24} color="#333" />
+          <Ionicons name="home" size={24} color="#1E4B46" />
           <Text style={styles.navTextActive}>Home</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem}>
@@ -368,15 +368,15 @@ export default function RequestScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: '#E8F5F3',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFF',
+    paddingVertical: 16,
+    backgroundColor: '#9BD7CD',
   },
   menuButton: {
     padding: 8,
@@ -384,13 +384,13 @@ const styles = StyleSheet.create({
   menuLine: {
     width: 20,
     height: 2,
-    backgroundColor: '#333',
+    backgroundColor: '#1E4B46',
     marginVertical: 2,
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1E4B46',
     position: 'absolute',
     right: 16,
   },
@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
   },
   activeTab: {
     borderBottomWidth: 2,
-    borderBottomColor: '#333',
+    borderBottomColor: '#1E4B46',
   },
   tabText: {
     fontSize: 12,
@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
     flexWrap: 'nowrap',
   },
   activeTabText: {
-    color: '#333',
+    color: '#1E4B46',
   },
   scrollView: {
     flex: 1,
@@ -471,7 +471,7 @@ const styles = StyleSheet.create({
   hospitalName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
   },
   statusBadge: {
     flexDirection: 'row',
@@ -496,7 +496,7 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: '#333',
+    color: '#4A5568',
     lineHeight: 20,
   },
   buttonContainer: {
@@ -507,10 +507,10 @@ const styles = StyleSheet.create({
   approveButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#2E7D32',
+    backgroundColor: '#1E4B46',
     paddingVertical: 12,
     paddingHorizontal: 10,
-    borderRadius: 8,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -518,24 +518,21 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '600',
-    marginRight: 6,
   },
   viewDetailsButton: {
     flex: 1,
-    backgroundColor: '#FFF',
+    backgroundColor: '#E8F5F3',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
   viewDetailsButtonFull: {
     flex: 1,
   },
   viewDetailsButtonText: {
-    color: '#333',
+    color: '#000',
     fontSize: 14,
     fontWeight: '600',
   },
@@ -558,7 +555,7 @@ const styles = StyleSheet.create({
   },
   navTextActive: {
     fontSize: 12,
-    color: '#333',
+    color: '#1E4B46',
     fontWeight: '600',
   },
   // Modal Styles
@@ -587,7 +584,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
     marginBottom: 8,
   },
   modalDescription: {
@@ -620,7 +617,7 @@ const styles = StyleSheet.create({
   },
   modalValue: {
     fontSize: 14,
-    color: '#333',
+    color: '#1E4B46',
     fontWeight: '500',
   },
   modalSection: {
@@ -633,10 +630,10 @@ const styles = StyleSheet.create({
   confirmButton: {
     flex: 1,
     flexDirection: 'row',
-    backgroundColor: '#2E7D32',
+    backgroundColor: '#1E4B46',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -644,14 +641,13 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '600',
-    marginRight: 6,
   },
   rejectButton: {
     flex: 1,
     backgroundColor: '#F44336',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -662,17 +658,15 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     width: '100%',
-    backgroundColor: '#FFF',
+    backgroundColor: '#1E4B46',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
   closeButtonText: {
-    color: '#333',
+    color: '#FFF',
     fontSize: 14,
     fontWeight: '600',
   },
