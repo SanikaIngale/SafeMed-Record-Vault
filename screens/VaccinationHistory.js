@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
   },
   content: {
     flex: 1,
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: 14,
-    color: '#666',
+    color: '#1E4B46',
   },
   summaryDivider: {
     width: 1,
@@ -277,7 +277,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
     marginBottom: 15,
   },
   vaccinationCard: {
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   vaccinationName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
     marginBottom: 4,
   },
   dateRow: {
@@ -320,7 +320,7 @@ const styles = StyleSheet.create({
   },
   date: {
     fontSize: 14,
-    color: '#666',
+    color: '#1E4B46',
     marginLeft: 5,
   },
   detailsContainer: {
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: '#666',
+    color: '#1E4B46',
     marginLeft: 8,
   },
   nextDueContainer: {
@@ -377,7 +377,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -406,7 +406,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   cancelButtonText: {
-    color: '#666',
+    color: '#1E4B46',
     fontSize: 16,
     fontWeight: '600',
   },

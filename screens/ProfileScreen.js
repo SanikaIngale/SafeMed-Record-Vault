@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1E4B46',
     marginBottom: 10,
   },
   editProfileButton: {
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   editProfileText: {
-    color: '#666',
+    color: '#1E4B46',
     fontSize: 14,
   },
   section: {
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1E4B46',
     marginBottom: 15,
   },
   menuCard: {
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 15,
     fontSize: 16,
-    color: '#333',
+    color: '#1E4B46',
   },
   logoutButton: {
     marginHorizontal: 20,

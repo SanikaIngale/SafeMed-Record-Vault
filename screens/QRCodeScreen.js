@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
   },
   content: {
     flex: 1,
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 14,
-    color: '#666',
+    color: '#1E4B46',
     textAlign: 'center',
     marginBottom: 40,
     lineHeight: 20,
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
   userId: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
     marginTop: 20,
   },
   infoBox: {
@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 10,
     fontSize: 14,
-    color: '#2d7a6e',
+    color: '#1E4B46',
     lineHeight: 20,
   },
   downloadButton: {

@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
   },
   content: {
     flex: 1,
@@ -189,7 +189,7 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 14,
-    color: '#666',
+    color: '#1E4B46',
     marginBottom: 20,
     lineHeight: 20,
   },
@@ -221,12 +221,12 @@ const styles = StyleSheet.create({
   contactName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
     marginBottom: 4,
   },
   contactRelation: {
     fontSize: 14,
-    color: '#666',
+    color: '#1E4B46',
     marginBottom: 4,
   },
   contactPhone: {
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   cancelButtonText: {
-    color: '#666',
+    color: '#1E4B46',
     fontSize: 16,
     fontWeight: '600',
   },

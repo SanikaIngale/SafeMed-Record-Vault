@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
   },
   content: {
     flex: 1,
@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
     marginBottom: 8,
   },
   input: {

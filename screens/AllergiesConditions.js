@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
   },
   tabContainer: {
     flexDirection: 'row',
@@ -255,11 +255,11 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 16,
-    color: '#666',
+    color: '#1E4B46',
     fontWeight: '500',
   },
   activeTabText: {
-    color: '#2d7a6e',
+    color: '#1E4B46',
     fontWeight: '600',
   },
   content: {
@@ -292,7 +292,7 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
     marginLeft: 10,
   },
   cardContent: {
@@ -305,12 +305,12 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#666',
+    color: '#1E4B46',
     width: 80,
   },
   infoValue: {
     fontSize: 14,
-    color: '#333',
+    color: '#1E4B46',
     flex: 1,
   },
   severityBadge: {
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#333',
+    color: '#1E4B46',
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -370,12 +370,12 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   cancelButtonText: {
-    color: '#666',
+    color: '#1E4B46',
     fontSize: 16,
     fontWeight: '600',
   },
   saveButton: {
-    backgroundColor: '#2d7a6e',
+    backgroundColor: '#1E4B46',
   },
   saveButtonText: {
     color: '#fff',
