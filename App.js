@@ -1,20 +1,33 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import OTPVerificationScreen from './screens/otp';
+import SignInScreen from './screens/signin';
+import SignUpScreen from './screens/signup';
 
 export default function App() {
+  const [currentScreen, setCurrentScreen] = useState('signin');
+  const [userCredentials, setUserCredentials] = useState({
+    email: '',
+    password: ''
+  });
+
+  const renderScreen = () => {
+    switch(currentScreen) {
+      case 'signin':
+        return <SignInScreen setCurrentScreen={setCurrentScreen} setUserCredentials={setUserCredentials} />;
+      case 'signup':
+        return <SignUpScreen setCurrentScreen={setCurrentScreen} userCredentials={userCredentials} />;
+      case 'otp':
+        return <OTPVerificationScreen setCurrentScreen={setCurrentScreen} />;
+      default:
+        return <SignInScreen setCurrentScreen={setCurrentScreen} setUserCredentials={setUserCredentials} />;
+    }
+  };
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <>
+      <StatusBar style="dark" />
+      {renderScreen()}
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
