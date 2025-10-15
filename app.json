@@ -24,6 +24,20 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "fonts": [
+      {
+        "asset": "@expo-google-fonts/poppins/Poppins_400Regular.ttf",
+        "family": "Poppins_400Regular"
+      },
+      {
+        "asset": "@expo-google-fonts/poppins/Poppins_600SemiBold.ttf",
+        "family": "Poppins_600SemiBold"
+      },
+      {
+        "asset": "@expo-google-fonts/poppins/Poppins_700Bold.ttf",
+        "family": "Poppins_700Bold"
+      }
+    ]
   }
 }
