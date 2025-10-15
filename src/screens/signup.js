@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-export default function SignUpScreen({ setCurrentScreen, userCredentials }) {
+export default function SignUpScreen({ navigation, route }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
@@ -10,81 +10,53 @@ export default function SignUpScreen({ setCurrentScreen, userCredentials }) {
   const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
-  // Pre-fill email if coming from signin
+  const { userCredentials } = route.params || {};
+
   useEffect(() => {
     if (userCredentials && userCredentials.email) {
       setEmail(userCredentials.email);
+      setPassword(userCredentials.password);
     }
   }, [userCredentials]);
 
   const handleSignUp = () => {
-    // Check if all fields are filled
     if (!name || !email || !mobileNumber || !password) {
       Alert.alert('Missing Information', 'Please fill in all fields');
       return;
     }
 
-    // Check terms agreement
     if (!agreedToTerms) {
       Alert.alert('Terms Required', 'Please agree to the Terms of Service and Privacy Policy');
       return;
     }
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       Alert.alert('Invalid Email', 'Please enter a valid email address');
       return;
     }
 
-    // Validate mobile number (basic check for 10 digits)
     const mobileRegex = /^\d{10}$/;
     if (!mobileRegex.test(mobileNumber.replace(/[\s-]/g, ''))) {
       Alert.alert('Invalid Mobile', 'Please enter a valid 10-digit mobile number');
       return;
     }
 
-    // Validate password length
     if (password.length < 6) {
       Alert.alert('Weak Password', 'Password must be at least 6 characters long');
       return;
     }
 
-    // Check if email and password match the signin credentials
-    if (userCredentials && userCredentials.email && userCredentials.password) {
-      if (email === userCredentials.email && password === userCredentials.password) {
-        // Credentials match, proceed to OTP
-        Alert.alert(
-          'Success!', 
-          `Account created for ${name}. Please verify your mobile number.`,
-          [
-            {
-              text: 'Continue',
-              onPress: () => setCurrentScreen('otp')
-            }
-          ]
-        );
-      } else {
-        // Credentials don't match
-        Alert.alert(
-          'Credentials Mismatch',
-          'Email or password does not match your sign-in credentials. Please use the same email and password.',
-          [{ text: 'OK' }]
-        );
-      }
-    } else {
-      // No signin credentials available, still proceed (optional flow)
-      Alert.alert(
-        'Success!', 
-        `Account created for ${name}. Please verify your mobile number.`,
-        [
-          {
-            text: 'Continue',
-            onPress: () => setCurrentScreen('otp')
-          }
-        ]
-      );
-    }
+    Alert.alert(
+      'Success!',
+      `Account created for ${name}. Please verify your mobile number.`,
+      [
+        {
+          text: 'Continue',
+          onPress: () => navigation.navigate('OTP', { mobileNumber, name, email }),
+        },
+      ]
+    );
   };
 
   const handleTermsPress = () => {
@@ -97,20 +69,15 @@ export default function SignUpScreen({ setCurrentScreen, userCredentials }) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setCurrentScreen('signin')}>
+        <TouchableOpacity onPress={() => navigation.navigate('SignIn')}>
           <MaterialCommunityIcons name="chevron-left" size={28} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Sign Up</Text>
         <View style={styles.headerSpacer} />
       </View>
 
-      {/* Form Container */}
       <View style={styles.formContainer}>
-        
-        {/* Name Input */}
         <View style={styles.inputWrapper}>
           <MaterialCommunityIcons name="account-outline" size={20} color="#999" style={styles.inputIcon} />
           <TextInput
@@ -123,7 +90,6 @@ export default function SignUpScreen({ setCurrentScreen, userCredentials }) {
           />
         </View>
 
-        {/* Email Input */}
         <View style={styles.inputWrapper}>
           <MaterialCommunityIcons name="email-outline" size={20} color="#999" style={styles.inputIcon} />
           <TextInput
@@ -138,7 +104,6 @@ export default function SignUpScreen({ setCurrentScreen, userCredentials }) {
           />
         </View>
 
-        {/* Mobile Number Input */}
         <View style={styles.inputWrapper}>
           <MaterialCommunityIcons name="phone-outline" size={20} color="#999" style={styles.inputIcon} />
           <TextInput
@@ -152,7 +117,6 @@ export default function SignUpScreen({ setCurrentScreen, userCredentials }) {
           />
         </View>
 
-        {/* Password Input - Highlighted */}
         <View style={[styles.inputWrapper, styles.passwordInputWrapper]}>
           <MaterialCommunityIcons name="lock-outline" size={20} color="#0066cc" style={styles.inputIcon} />
           <TextInput
@@ -176,14 +140,12 @@ export default function SignUpScreen({ setCurrentScreen, userCredentials }) {
           </TouchableOpacity>
         </View>
 
-        {/* Password hint if credentials provided */}
         {userCredentials && userCredentials.email && (
           <Text style={styles.hintText}>
-            💡 Use the same password you entered during sign-in
+            Use the same password you entered during sign-in
           </Text>
         )}
 
-        {/* Terms Agreement */}
         <View style={styles.termsContainer}>
           <TouchableOpacity
             style={styles.checkbox}
@@ -207,7 +169,6 @@ export default function SignUpScreen({ setCurrentScreen, userCredentials }) {
           </View>
         </View>
 
-        {/* Sign Up Button */}
         <TouchableOpacity
           style={styles.signUpButton}
           onPress={handleSignUp}
@@ -216,10 +177,9 @@ export default function SignUpScreen({ setCurrentScreen, userCredentials }) {
           <Text style={styles.signUpButtonText}>Sign Up</Text>
         </TouchableOpacity>
 
-        {/* Sign In Link */}
         <View style={styles.signInLinkContainer}>
           <Text style={styles.signInText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => setCurrentScreen('signin')}>
+          <TouchableOpacity onPress={() => navigation.navigate('SignIn')}>
             <Text style={styles.signInLink}>Sign In</Text>
           </TouchableOpacity>
         </View>

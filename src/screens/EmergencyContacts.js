@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   Modal,
   TextInput,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 
@@ -43,10 +44,21 @@ const EmergencyContacts = ({ navigation }) => {
   };
 
   const handleDeleteContact = (id) => {
-    setContacts(contacts.filter(contact => contact.id !== id));
+    Alert.alert('Confirm Delete', 'Are you sure you want to delete this contact?', [
+      { text: 'Cancel' },
+      {
+        text: 'Delete',
+        onPress: () => setContacts(contacts.filter(contact => contact.id !== id)),
+      },
+    ]);
   };
 
   const handleSaveContact = () => {
+    if (!formData.name || !formData.relation || !formData.phone) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
     if (editingContact) {
       setContacts(contacts.map(contact =>
         contact.id === editingContact.id
@@ -106,7 +118,6 @@ const EmergencyContacts = ({ navigation }) => {
         ))}
       </ScrollView>
 
-      {/* Add/Edit Contact Modal */}
       <Modal
         animationType="slide"
         transparent={true}

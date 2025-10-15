@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   Share,
   Image,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 
@@ -18,16 +19,16 @@ const QRCodeScreen = ({ navigation }) => {
     emergencyContact: '+91 98765 11111',
   });
 
-  // Using QR Code API service (alternative to library)
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(userQRData)}`;
 
   const handleShare = async () => {
     try {
       await Share.share({
         message: 'My Medical QR Code - ID: USER12345\n' + userQRData,
+        title: 'My Medical QR Code',
       });
     } catch (error) {
-      console.error(error);
+      Alert.alert('Error', 'Failed to share QR Code');
     }
   };
 

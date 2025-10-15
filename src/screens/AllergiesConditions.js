@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   Modal,
   TextInput,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 
@@ -27,22 +28,97 @@ const AllergiesConditions = ({ navigation }) => {
     { id: 2, name: 'Hypertension', diagnosed: '2020', status: 'Under treatment' },
   ]);
 
+  const [editingItem, setEditingItem] = useState(null);
+  const [formData, setFormData] = useState({
+    name: '',
+    severity: '',
+    notes: '',
+    diagnosed: '',
+    status: '',
+  });
+
   const handleAddItem = () => {
-    setItemText('');
+    setEditingItem(null);
+    setFormData({
+      name: '',
+      severity: '',
+      notes: '',
+      diagnosed: '',
+      status: '',
+    });
+    setModalVisible(true);
+  };
+
+  const handleEditItem = (item) => {
+    setEditingItem(item);
+    if (activeTab === 'allergies') {
+      setFormData({
+        name: item.name,
+        severity: item.severity,
+        notes: item.notes,
+      });
+    } else {
+      setFormData({
+        name: item.name,
+        diagnosed: item.diagnosed,
+        status: item.status,
+      });
+    }
     setModalVisible(true);
   };
 
   const handleSaveItem = () => {
-    // Save logic here
+    if (!formData.name) {
+      Alert.alert('Error', 'Please enter a name');
+      return;
+    }
+
+    if (activeTab === 'allergies') {
+      if (!formData.severity) {
+        Alert.alert('Error', 'Please enter severity');
+        return;
+      }
+      if (editingItem) {
+        setAllergies(allergies.map(a =>
+          a.id === editingItem.id ? { ...editingItem, ...formData } : a
+        ));
+      } else {
+        setAllergies([...allergies, { id: Date.now(), ...formData }]);
+      }
+    } else {
+      if (!formData.diagnosed || !formData.status) {
+        Alert.alert('Error', 'Please fill in all fields');
+        return;
+      }
+      if (editingItem) {
+        setConditions(conditions.map(c =>
+          c.id === editingItem.id ? { ...editingItem, ...formData } : c
+        ));
+      } else {
+        setConditions([...conditions, { id: Date.now(), ...formData }]);
+      }
+    }
     setModalVisible(false);
   };
 
   const handleDeleteAllergy = (id) => {
-    setAllergies(allergies.filter(item => item.id !== id));
+    Alert.alert('Confirm Delete', 'Are you sure you want to delete this allergy?', [
+      { text: 'Cancel' },
+      {
+        text: 'Delete',
+        onPress: () => setAllergies(allergies.filter(item => item.id !== id)),
+      },
+    ]);
   };
 
   const handleDeleteCondition = (id) => {
-    setConditions(conditions.filter(item => item.id !== id));
+    Alert.alert('Confirm Delete', 'Are you sure you want to delete this condition?', [
+      { text: 'Cancel' },
+      {
+        text: 'Delete',
+        onPress: () => setConditions(conditions.filter(item => item.id !== id)),
+      },
+    ]);
   };
 
   const getSeverityColor = (severity) => {
@@ -70,7 +146,6 @@ const AllergiesConditions = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'allergies' && styles.activeTab]}
@@ -150,7 +225,6 @@ const AllergiesConditions = ({ navigation }) => {
         )}
       </ScrollView>
 
-      {/* Add Item Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -160,14 +234,14 @@ const AllergiesConditions = ({ navigation }) => {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
-              Add {activeTab === 'allergies' ? 'Allergy' : 'Condition'}
+              {editingItem ? 'Edit' : 'Add'} {activeTab === 'allergies' ? 'Allergy' : 'Condition'}
             </Text>
 
             <TextInput
               style={styles.input}
               placeholder={activeTab === 'allergies' ? 'Allergy name' : 'Condition name'}
-              value={itemText}
-              onChangeText={setItemText}
+              value={formData.name}
+              onChangeText={(text) => setFormData({ ...formData, name: text })}
             />
 
             {activeTab === 'allergies' ? (
@@ -175,10 +249,14 @@ const AllergiesConditions = ({ navigation }) => {
                 <TextInput
                   style={styles.input}
                   placeholder="Severity (Mild/Moderate/Severe)"
+                  value={formData.severity}
+                  onChangeText={(text) => setFormData({ ...formData, severity: text })}
                 />
                 <TextInput
                   style={[styles.input, styles.textArea]}
                   placeholder="Notes"
+                  value={formData.notes}
+                  onChangeText={(text) => setFormData({ ...formData, notes: text })}
                   multiline
                   numberOfLines={3}
                 />
@@ -188,10 +266,14 @@ const AllergiesConditions = ({ navigation }) => {
                 <TextInput
                   style={styles.input}
                   placeholder="Year diagnosed"
+                  value={formData.diagnosed}
+                  onChangeText={(text) => setFormData({ ...formData, diagnosed: text })}
                 />
                 <TextInput
                   style={styles.input}
                   placeholder="Current status"
+                  value={formData.status}
+                  onChangeText={(text) => setFormData({ ...formData, status: text })}
                 />
               </>
             )}
@@ -207,7 +289,7 @@ const AllergiesConditions = ({ navigation }) => {
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={handleSaveItem}
               >
-                <Text style={styles.saveButtonText}>Add</Text>
+                <Text style={styles.saveButtonText}>{editingItem ? 'Update' : 'Add'}</Text>
               </TouchableOpacity>
             </View>
           </View>

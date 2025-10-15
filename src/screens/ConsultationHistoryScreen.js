@@ -8,49 +8,54 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
-import { 
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import {
   useFonts,
   Poppins_400Regular,
   Poppins_600SemiBold,
-  Poppins_700Bold 
+  Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
 
-// Mock data
 const consultations = [
-  { id: '1', date: '05 July 25', doctor: 'Dr. Anya Sharma', clinic: 'General Hospital' },
-  { id: '2', date: '05 July 25', doctor: 'Dr. Anya Sharma', clinic: 'General Hospital' },
-  { id: '3', date: '05 July 25', doctor: 'Dr. Anya Sharma', clinic: 'General Hospital' },
-  { id: '4', date: '05 July 25', doctor: 'Dr. Anya Sharma', clinic: 'General Hospital' },
-  { id: '5', date: '05 July 25', doctor: 'Dr. Anya Sharma', clinic: 'General Hospital' },
+  {
+    id: '1',
+    date: '05 July 25',
+    doctor: 'Dr. Anya Sharma',
+    clinic: 'General Hospital',
+    reason: 'General Checkup',
+  },
+  {
+    id: '2',
+    date: '12 June 25',
+    doctor: 'Dr. Anya Sharma',
+    clinic: 'General Hospital',
+    reason: 'Follow-up Visit',
+  },
+  {
+    id: '3',
+    date: '28 May 25',
+    doctor: 'Dr. Priya Verma',
+    clinic: 'Apollo Clinic',
+    reason: 'Blood Pressure Check',
+  },
+  {
+    id: '4',
+    date: '10 May 25',
+    doctor: 'Dr. Anya Sharma',
+    clinic: 'General Hospital',
+    reason: 'Consultation',
+  },
 ];
 
 const ConsultationCard = ({ consultation, onPress }) => (
-  
-  // <View style={styles.card}>
-  //   <View style={styles.cardContent}>
-  //     <Text style={styles.cardLabel}>
-  //       Date: <Text style={styles.cardValue}>{consultation.date}</Text>
-  //     </Text>
-  //     <Text style={styles.cardLabel}>
-  //       Doctor: <Text style={styles.cardValue}>{consultation.doctor}</Text>
-  //     </Text>
-  //     <View style={styles.clinicRow}>
-  //       <Text style={styles.cardLabel}>
-  //         Clinic: <Text style={styles.cardValue}>{consultation.clinic}</Text>
-  //       </Text>
-  //       <TouchableOpacity style={styles.detailsButton} onPress={onPress}>
-  //         <Text style={styles.detailsButtonText}>View Details</Text>
-  //       </TouchableOpacity>
-  //     </View>
-  //   </View>
-  // </View>
-  <View style={styles.card}>
+  <TouchableOpacity style={styles.card} onPress={onPress}>
     <View style={styles.cardContent}>
-      <Text style={styles.clinicLabel}>
-        {consultation.clinic}
-      </Text>
+      <Text style={styles.clinicLabel}>{consultation.clinic}</Text>
       <Text style={styles.cardLabel}>
         Doctor: <Text style={styles.cardValue}>{consultation.doctor}</Text>
+      </Text>
+      <Text style={styles.cardLabel}>
+        Reason: <Text style={styles.cardValue}>{consultation.reason}</Text>
       </Text>
       <View style={styles.dateRow}>
         <Text style={styles.cardLabel}>
@@ -61,7 +66,7 @@ const ConsultationCard = ({ consultation, onPress }) => (
         </TouchableOpacity>
       </View>
     </View>
-  </View>
+  </TouchableOpacity>
 );
 
 const ConsultationHistoryScreen = ({ navigation }) => {
@@ -81,9 +86,13 @@ const ConsultationHistoryScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#9bd7cd" />
+      <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Icon name="arrow-left" size={24} color="#333" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Consultation History</Text>
+        <View style={{ width: 24 }} />
       </View>
       <ScrollView
         style={styles.scrollView}
@@ -104,22 +113,27 @@ const ConsultationHistoryScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffffff',
+    backgroundColor: '#f5f5f5',
   },
   dateRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 0,
+    marginTop: 8,
   },
   header: {
-    backgroundColor: '#9bd7cd',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingVertical: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   headerTitle: {
-    fontSize: 24,
-    fontFamily: 'Poppins_700Bold',
+    fontSize: 18,
+    fontWeight: '600',
     color: '#1e4b46',
   },
   scrollView: {
@@ -139,46 +153,35 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  clinicRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
   clinicLabel: {
     fontSize: 17,
     color: '#1e4b46',
-    fontFamily: 'Poppins_700Bold',
-    flex: 1,
-    marginBottom: 2,
+    fontWeight: '700',
+    marginBottom: 8,
   },
-  cardContent: {
-    // marginBottom: 15,
-  },
+  cardContent: {},
   cardLabel: {
     fontSize: 15,
     color: '#1e4b46',
-    // fontWeight: '600',
-    fontFamily: 'Poppins_600SemiBold',
+    fontWeight: '600',
     marginBottom: 8,
     flex: 1,
   },
   cardValue: {
-    fontFamily: 'Poppins_400Regular',
+    fontWeight: '400',
     color: '#1e4b46',
   },
   detailsButton: {
     backgroundColor: '#1e4b46',
     borderRadius: 20,
     paddingVertical: 7,
-    paddingHorizontal: 10,
-    // alignSelf: 'flex-end',
+    paddingHorizontal: 15,
     marginLeft: 10,
   },
   detailsButtonText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontFamily: 'Poppins_600SemiBold',
+    fontWeight: '600',
   },
 });
 

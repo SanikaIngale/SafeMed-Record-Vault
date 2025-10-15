@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 
@@ -23,8 +24,16 @@ const EditPersonalInfo = ({ navigation }) => {
   });
 
   const handleSave = () => {
-    // Save logic here
-    navigation.goBack();
+    Alert.alert(
+      'Success',
+      'Personal information updated successfully!',
+      [
+        {
+          text: 'OK',
+          onPress: () => navigation.goBack(),
+        },
+      ]
+    );
   };
 
   return (

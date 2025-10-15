@@ -8,40 +8,43 @@ import {
   SafeAreaView,
   StatusBar,
 } from 'react-native';
-import { 
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import {
   useFonts,
   Poppins_400Regular,
   Poppins_600SemiBold,
-  Poppins_700Bold 
+  Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
-
-// Mock visit details
-const visitDetails = {
-  doctor: 'Dr. Anya Sharma',
-  clinic: 'General Hospital',
-  reasonForVisit: 'Ongoing tiredness and periodic throbbing headaches.',
-  diagnosis: 'Indicative of migraine episodes aggravated by exhaustion.',
-  additionalNotes:
-    'Maintain a regular sleep schedule\nIf symptoms persist or worsen, follow-up required',
-  attachments: [
-    { id: '1', type: 'Prescription', icon: '💊' },
-    { id: '2', type: 'Blood Test\nReport', icon: '📄' },
-  ],
-};
 
 const AttachmentCard = ({ attachment }) => (
   <View style={styles.attachmentCard}>
     <View style={styles.attachmentIcon}>
-      <Text style={styles.attachmentEmoji}>{attachment.icon}</Text>
+      <Icon name={attachment.icon} size={32} color="#1E4B46" />
     </View>
     <Text style={styles.attachmentText}>{attachment.type}</Text>
   </View>
 );
 
 const VisitSummaryScreen = ({ navigation, route }) => {
+  const { consultation } = route.params || {};
+
+  const visitDetails = {
+    doctor: consultation?.doctor || 'Dr. Anya Sharma',
+    clinic: consultation?.clinic || 'General Hospital',
+    date: consultation?.date || '05 July 25',
+    reasonForVisit: consultation?.reason || 'Ongoing tiredness and periodic throbbing headaches',
+    diagnosis: 'Indicative of migraine episodes aggravated by exhaustion',
+    additionalNotes: 'Maintain a regular sleep schedule\nIf symptoms persist or worsen, follow-up required',
+    attachments: [
+      { id: '1', type: 'Prescription', icon: 'file-document' },
+      { id: '2', type: 'Blood Test\nReport', icon: 'file-chart' },
+    ],
+  };
+
   const handleBack = () => {
     navigation.goBack();
   };
+
   let [fontsLoaded] = useFonts({
     Poppins_400Regular,
     Poppins_600SemiBold,
@@ -54,12 +57,13 @@ const VisitSummaryScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#9bd7cd" />
+      <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <Text style={styles.backButtonText}>‹</Text>
+          <Icon name="arrow-left" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Visit Summary</Text>
+        <View style={{ width: 24 }} />
       </View>
       <ScrollView
         style={styles.scrollView}
@@ -68,11 +72,14 @@ const VisitSummaryScreen = ({ navigation, route }) => {
         <View style={styles.summaryCard}>
           <View style={styles.doctorHeader}>
             <View style={styles.doctorImage}>
-              <Text style={styles.doctorInitial}>A</Text>
+              <Text style={styles.doctorInitial}>
+                {visitDetails.doctor.charAt(4)}
+              </Text>
             </View>
             <View style={styles.doctorInfo}>
               <Text style={styles.doctorName}>{visitDetails.doctor}</Text>
               <Text style={styles.clinicName}>{visitDetails.clinic}</Text>
+              <Text style={styles.dateText}>{visitDetails.date}</Text>
             </View>
           </View>
 
@@ -114,28 +121,26 @@ const VisitSummaryScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f5f5f5',
   },
   header: {
-    backgroundColor: '#9bd7cd',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   backButton: {
-    marginRight: 15,
     padding: 5,
   },
-  backButtonText: {
-    fontSize: 32,
-    color: '#1e4b46',
-    fontFamily: 'Poppins_400Regular',
-  },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 18,
     fontFamily: 'Poppins_700Bold',
     color: '#1e4b46',
+    fontWeight: '700',
   },
   scrollView: {
     flex: 1,
@@ -162,7 +167,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#E91E63',
+    backgroundColor: '#1E4B46',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 15,
@@ -171,20 +176,28 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 24,
     fontFamily: 'Poppins_700Bold',
+    fontWeight: '700',
   },
   doctorInfo: {
     flex: 1,
   },
   doctorName: {
-    fontSize: 20,
+    fontSize: 18,
     fontFamily: 'Poppins_700Bold',
     color: '#1e4b46',
     marginBottom: 4,
+    fontWeight: '700',
   },
   clinicName: {
-    fontSize: 15,
+    fontSize: 14,
     fontFamily: 'Poppins_400Regular',
     color: '#1e4b46',
+    marginBottom: 2,
+  },
+  dateText: {
+    fontSize: 12,
+    fontFamily: 'Poppins_400Regular',
+    color: '#666',
   },
   section: {
     marginBottom: 20,
@@ -194,6 +207,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins_600SemiBold',
     color: '#1e4b46',
     marginBottom: 8,
+    fontWeight: '600',
   },
   sectionText: {
     fontSize: 14,
@@ -203,7 +217,7 @@ const styles = StyleSheet.create({
   },
   divider: {
     height: 1,
-    backgroundColor: '#D0DCE3',
+    backgroundColor: '#e0e0e0',
     marginBottom: 20,
   },
   attachmentsContainer: {
@@ -214,7 +228,7 @@ const styles = StyleSheet.create({
   },
   attachmentCard: {
     flex: 1,
-    backgroundColor: '#B8E0D8',
+    backgroundColor: '#e8f5f3',
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
@@ -225,11 +239,8 @@ const styles = StyleSheet.create({
   attachmentIcon: {
     marginBottom: 10,
   },
-  attachmentEmoji: {
-    fontSize: 40,
-  },
   attachmentText: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '600',
     color: '#1e4b46',
     textAlign: 'center',

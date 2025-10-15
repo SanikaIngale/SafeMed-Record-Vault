@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   Modal,
   TextInput,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 
@@ -30,15 +31,6 @@ const OngoingMedication = ({ navigation }) => {
       frequency: 'Twice daily',
       time: 'After meals',
       startDate: '15/02/2024',
-    },
-    {
-      id: 3,
-      name: 'Albuterol Inhaler',
-      purpose: 'Asthma relief',
-      dosage: '2 puffs',
-      frequency: 'As needed',
-      time: 'When required',
-      startDate: '10/03/2024',
     },
   ]);
 
@@ -73,13 +65,24 @@ const OngoingMedication = ({ navigation }) => {
   };
 
   const handleDeleteMedication = (id) => {
-    setMedications(medications.filter(med => med.id !== id));
+    Alert.alert('Confirm Delete', 'Are you sure you want to delete this medication?', [
+      { text: 'Cancel' },
+      {
+        text: 'Delete',
+        onPress: () => setMedications(medications.filter(med => med.id !== id)),
+      },
+    ]);
   };
 
   const handleSaveMedication = () => {
+    if (!formData.name || !formData.dosage || !formData.frequency) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
     if (editingMed) {
       setMedications(medications.map(med =>
-        med.id === editingMed.id ? { ...med, ...formData } : med
+        med.id === editingMed.id ? { ...editingMed, ...formData } : med
       ));
     } else {
       setMedications([...medications, { id: Date.now(), ...formData }]);
@@ -154,7 +157,6 @@ const OngoingMedication = ({ navigation }) => {
         ))}
       </ScrollView>
 
-      {/* Add/Edit Medication Modal */}
       <Modal
         animationType="slide"
         transparent={true}

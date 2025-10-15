@@ -2,15 +2,14 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRef, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-export default function OTPVerificationScreen({ setCurrentScreen, mobileNumber }) {
+export default function OTPVerificationScreen({ navigation, route }) {
   const [otp, setOtp] = useState(['', '', '', '']);
   const inputRefs = useRef([]);
+  const { mobileNumber, name, email, setIsAuthenticated } = route.params || {};
 
-  // Format mobile number with country code
   const formattedNumber = mobileNumber ? `+91 ${mobileNumber}` : '+91 XXXXXXXXXX';
 
   const handleOtpChange = (value, index) => {
-    // Only allow single digit
     if (value.length > 1) {
       return;
     }
@@ -19,14 +18,12 @@ export default function OTPVerificationScreen({ setCurrentScreen, mobileNumber }
     newOtp[index] = value;
     setOtp(newOtp);
 
-    // Auto focus to next input
     if (value !== '' && index < 3) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
   const handleKeyPress = (e, index) => {
-    // Handle backspace to move to previous input
     if (e.nativeEvent.key === 'Backspace' && otp[index] === '' && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
@@ -42,12 +39,13 @@ export default function OTPVerificationScreen({ setCurrentScreen, mobileNumber }
           {
             text: 'Continue',
             onPress: () => {
-              // Navigate to next screen or handle success
-              Alert.alert('Welcome!', 'Your account has been verified successfully!');
-              // You can navigate to home screen or dashboard here
-              // setCurrentScreen('home');
-            }
-          }
+              // Mark user as authenticated and navigate to Profile
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Profile' }],
+              });
+            },
+          },
         ]
       );
     } else {
@@ -65,17 +63,18 @@ export default function OTPVerificationScreen({ setCurrentScreen, mobileNumber }
     inputRefs.current[0]?.focus();
   };
 
+  const handleGoBack = () => {
+    navigation.goBack();
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      
-      {/* Header with Back Button */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => setCurrentScreen('signup')}>
+        <TouchableOpacity onPress={handleGoBack}>
           <MaterialCommunityIcons name="chevron-left" size={28} color="#333" />
         </TouchableOpacity>
       </View>
 
-      {/* Illustration */}
       <View style={styles.illustrationContainer}>
         <View style={styles.circle}>
           <MaterialCommunityIcons name="cellphone-message" size={80} color="#1E4B46" />
@@ -85,25 +84,19 @@ export default function OTPVerificationScreen({ setCurrentScreen, mobileNumber }
         </View>
       </View>
 
-      {/* Title */}
       <Text style={styles.title}>OTP Verification</Text>
 
-      {/* Description */}
       <Text style={styles.description}>
         Enter the OTP sent to {'\n'}
         <Text style={styles.phoneNumber}>{formattedNumber}</Text>
       </Text>
 
-      {/* OTP Input Fields */}
       <View style={styles.otpContainer}>
         {otp.map((digit, index) => (
           <TextInput
             key={index}
             ref={(ref) => (inputRefs.current[index] = ref)}
-            style={[
-              styles.otpInput,
-              digit !== '' && styles.otpInputFilled
-            ]}
+            style={[styles.otpInput, digit !== '' && styles.otpInputFilled]}
             placeholder="-"
             placeholderTextColor="#ddd"
             value={digit}
@@ -116,7 +109,6 @@ export default function OTPVerificationScreen({ setCurrentScreen, mobileNumber }
         ))}
       </View>
 
-      {/* Didn't receive OTP */}
       <View style={styles.resendContainer}>
         <Text style={styles.resendText}>Didn't receive the OTP?</Text>
         <TouchableOpacity onPress={handleResendOtp}>
@@ -124,12 +116,8 @@ export default function OTPVerificationScreen({ setCurrentScreen, mobileNumber }
         </TouchableOpacity>
       </View>
 
-      {/* Verify Button */}
       <TouchableOpacity
-        style={[
-          styles.verifyButton,
-          otp.join('').length === 4 && styles.verifyButtonActive
-        ]}
+        style={[styles.verifyButton, otp.join('').length === 4 && styles.verifyButtonActive]}
         onPress={handleVerify}
         activeOpacity={0.8}
       >

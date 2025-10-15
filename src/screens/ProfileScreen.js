@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 
@@ -47,7 +48,7 @@ const ProfileScreen = ({ navigation }) => {
         {
           id: 'medication',
           icon: 'pill',
-          title: 'On going Medication',
+          title: 'Ongoing Medication',
           screen: 'OngoingMedication',
         },
         {
@@ -58,7 +59,43 @@ const ProfileScreen = ({ navigation }) => {
         },
       ],
     },
+    {
+      section: 'Health Records',
+      items: [
+        {
+          id: 'consultation',
+          icon: 'hospital-box',
+          title: 'Consultation History',
+          screen: 'ConsultationHistory',
+        },
+        {
+          id: 'requests',
+          icon: 'file-document-outline',
+          title: 'Data Access Requests',
+          screen: 'Request',
+        },
+      ],
+    },
   ];
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', onPress: () => {} },
+        {
+          text: 'Logout',
+          onPress: () => {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'SignIn' }],
+            });
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -99,7 +136,7 @@ const ProfileScreen = ({ navigation }) => {
         ))}
 
         {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton}>
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>

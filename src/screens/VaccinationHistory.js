@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   Modal,
   TextInput,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 
@@ -29,17 +30,10 @@ const VaccinationHistory = ({ navigation }) => {
       doseNumber: 'Annual',
       nextDue: '10/10/2024',
     },
-    {
-      id: 3,
-      name: 'Tetanus',
-      date: '05/06/2020',
-      location: 'District Hospital',
-      doseNumber: 'Booster',
-      nextDue: '05/06/2030',
-    },
   ]);
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [editingVac, setEditingVac] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     date: '',
@@ -49,6 +43,7 @@ const VaccinationHistory = ({ navigation }) => {
   });
 
   const handleAddVaccination = () => {
+    setEditingVac(null);
     setFormData({
       name: '',
       date: '',
@@ -59,13 +54,36 @@ const VaccinationHistory = ({ navigation }) => {
     setModalVisible(true);
   };
 
-  const handleSaveVaccination = () => {
-    setVaccinations([...vaccinations, { id: Date.now(), ...formData }]);
-    setModalVisible(false);
+  const handleEditVaccination = (vac) => {
+    setEditingVac(vac);
+    setFormData({ ...vac });
+    setModalVisible(true);
   };
 
   const handleDeleteVaccination = (id) => {
-    setVaccinations(vaccinations.filter(vac => vac.id !== id));
+    Alert.alert('Confirm Delete', 'Are you sure you want to delete this vaccination record?', [
+      { text: 'Cancel' },
+      {
+        text: 'Delete',
+        onPress: () => setVaccinations(vaccinations.filter(vac => vac.id !== id)),
+      },
+    ]);
+  };
+
+  const handleSaveVaccination = () => {
+    if (!formData.name || !formData.date) {
+      Alert.alert('Error', 'Please fill in all required fields');
+      return;
+    }
+
+    if (editingVac) {
+      setVaccinations(vaccinations.map(vac =>
+        vac.id === editingVac.id ? { ...editingVac, ...formData } : vac
+      ));
+    } else {
+      setVaccinations([...vaccinations, { id: Date.now(), ...formData }]);
+    }
+    setModalVisible(false);
   };
 
   const isUpcoming = (date) => {
@@ -151,7 +169,6 @@ const VaccinationHistory = ({ navigation }) => {
         ))}
       </ScrollView>
 
-      {/* Add Vaccination Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -160,57 +177,61 @@ const VaccinationHistory = ({ navigation }) => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add Vaccination Record</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>
+                {editingVac ? 'Edit Vaccination' : 'Add Vaccination Record'}
+              </Text>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Vaccine Name"
-              value={formData.name}
-              onChangeText={(text) => setFormData({ ...formData, name: text })}
-            />
+              <TextInput
+                style={styles.input}
+                placeholder="Vaccine Name"
+                value={formData.name}
+                onChangeText={(text) => setFormData({ ...formData, name: text })}
+              />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Date Administered (DD/MM/YYYY)"
-              value={formData.date}
-              onChangeText={(text) => setFormData({ ...formData, date: text })}
-            />
+              <TextInput
+                style={styles.input}
+                placeholder="Date Administered (DD/MM/YYYY)"
+                value={formData.date}
+                onChangeText={(text) => setFormData({ ...formData, date: text })}
+              />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Location/Facility"
-              value={formData.location}
-              onChangeText={(text) => setFormData({ ...formData, location: text })}
-            />
+              <TextInput
+                style={styles.input}
+                placeholder="Location/Facility"
+                value={formData.location}
+                onChangeText={(text) => setFormData({ ...formData, location: text })}
+              />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Dose Number (e.g., 1st, 2nd, Booster)"
-              value={formData.doseNumber}
-              onChangeText={(text) => setFormData({ ...formData, doseNumber: text })}
-            />
+              <TextInput
+                style={styles.input}
+                placeholder="Dose Number (e.g., 1st, 2nd, Booster)"
+                value={formData.doseNumber}
+                onChangeText={(text) => setFormData({ ...formData, doseNumber: text })}
+              />
 
-            <TextInput
-              style={styles.input}
-              placeholder="Next Due Date (DD/MM/YYYY or N/A)"
-              value={formData.nextDue}
-              onChangeText={(text) => setFormData({ ...formData, nextDue: text })}
-            />
+              <TextInput
+                style={styles.input}
+                placeholder="Next Due Date (DD/MM/YYYY or N/A)"
+                value={formData.nextDue}
+                onChangeText={(text) => setFormData({ ...formData, nextDue: text })}
+              />
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
-                onPress={handleSaveVaccination}
-              >
-                <Text style={styles.saveButtonText}>Add</Text>
-              </TouchableOpacity>
-            </View>
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.saveButton]}
+                  onPress={handleSaveVaccination}
+                >
+                  <Text style={styles.saveButtonText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -373,6 +394,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 25,
     width: '85%',
+    maxHeight: '80%',
   },
   modalTitle: {
     fontSize: 20,

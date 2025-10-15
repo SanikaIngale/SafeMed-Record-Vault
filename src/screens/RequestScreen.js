@@ -11,9 +11,9 @@ import {
   Modal,
   Pressable,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 
-export default function RequestScreen() {
+export default function RequestScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('all');
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -22,22 +22,22 @@ export default function RequestScreen() {
     {
       id: 1,
       hospitalName: 'Vedanta Hospital',
-      address: '83712 George Street, Edaview 72445-8748',
+      address: '83712 George Street, Mumbai 72445-8748',
       owner: 'Jackie Pfannerstill',
       status: 'pending',
     },
     {
       id: 2,
-      hospitalName: 'Vedanta Hospital',
-      address: '83712 George Street, Edaview 72445-8748',
-      owner: 'Jackie Pfannerstill',
+      hospitalName: 'Apollo Clinic',
+      address: '123 Health Avenue, Mumbai 72445-8748',
+      owner: 'Dr. Smith',
       status: 'rejected',
     },
     {
       id: 3,
-      hospitalName: 'Vedanta Hospital',
-      address: '83712 George Street, Edaview 72445-8748',
-      owner: 'Jackie Pfannerstill',
+      hospitalName: 'City Medical Center',
+      address: '456 Wellness Road, Mumbai 72445-8748',
+      owner: 'Health Care Admin',
       status: 'approved',
     },
   ]);
@@ -75,11 +75,11 @@ export default function RequestScreen() {
   const getModalTitle = (status) => {
     switch (status) {
       case 'pending':
-        return 'Confirm Approve Request ?';
+        return 'Confirm Approve Request?';
       case 'approved':
-        return 'Approved Request!';
+        return 'Request Approved';
       case 'rejected':
-        return 'Rejected Request!';
+        return 'Request Rejected';
       default:
         return 'Request Details';
     }
@@ -88,17 +88,16 @@ export default function RequestScreen() {
   const getModalDescription = (status) => {
     switch (status) {
       case 'pending':
-        return 'This will approve the hospital request for hospital data for the owner';
+        return 'This will approve the hospital request for medical data access.';
       case 'approved':
-        return 'The hospital request for hospital data for the owner has been approved.';
+        return 'The hospital request for medical data access has been approved.';
       case 'rejected':
-        return 'The hospital request for hospital data for the owner has been rejected.';
+        return 'The hospital request for medical data access has been rejected.';
       default:
         return '';
     }
   };
 
-  // Filter requests based on active tab
   const getFilteredRequests = () => {
     if (activeTab === 'all') {
       return requests;
@@ -111,44 +110,29 @@ export default function RequestScreen() {
   };
 
   const handleViewDetails = (request) => {
-    console.log('View Details clicked for:', request.hospitalName);
     setSelectedRequest(request);
     setModalVisible(true);
   };
 
-  const handleApprove = (requestId) => {
-    console.log('Approve clicked for request:', requestId);
-    setRequests(prevRequests =>
-      prevRequests.map(req =>
-        req.id === requestId ? { ...req, status: 'approved' } : req
-      )
-    );
-  };
-
   const handleConfirmApprove = () => {
-    console.log('Approved:', selectedRequest);
     setRequests(prevRequests =>
       prevRequests.map(req =>
         req.id === selectedRequest.id ? { ...req, status: 'approved' } : req
       )
     );
-    // Update the selected request to show the new status in modal
     setSelectedRequest(prev => ({ ...prev, status: 'approved' }));
   };
 
   const handleRejectRequest = () => {
-    console.log('Rejected:', selectedRequest);
     setRequests(prevRequests =>
       prevRequests.map(req =>
         req.id === selectedRequest.id ? { ...req, status: 'rejected' } : req
       )
     );
-    // Update the selected request to show the new status in modal
     setSelectedRequest(prev => ({ ...prev, status: 'rejected' }));
   };
 
   const handleCloseModal = () => {
-    console.log('Modal closed');
     setModalVisible(false);
   };
 
@@ -191,9 +175,9 @@ export default function RequestScreen() {
         {request.status === 'pending' && (
           <TouchableOpacity 
             style={styles.approveButton}
-            onPress={() => handleApprove(request.id)}
+            onPress={() => handleViewDetails(request)}
           >
-            <Text style={styles.approveButtonText}>Approve Request</Text>
+            <Text style={styles.approveButtonText}>View Details</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity
@@ -211,29 +195,25 @@ export default function RequestScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#9BD7CD" />
+      <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
       
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.menuButton}>
-          <View style={styles.menuLine} />
-          <View style={styles.menuLine} />
-          <View style={styles.menuLine} />
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Icon name="arrow-left" size={24} color="#333" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Bulandshahr</Text>
+        <Text style={styles.headerTitle}>Data Access Requests</Text>
+        <View style={{ width: 24 }} />
       </View>
 
-      {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#999" />
+        <Icon name="search" size={20} color="#999" />
         <TextInput
           style={styles.searchInput}
-          placeholder="Search Request by Hospital Name"
+          placeholder="Search by Hospital Name"
           placeholderTextColor="#999"
         />
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabContainer}>
         <TouchableOpacity
           style={[styles.tab, activeTab === 'all' && styles.activeTab]}
@@ -245,7 +225,7 @@ export default function RequestScreen() {
               activeTab === 'all' && styles.activeTabText,
             ]}
           >
-            All Requests
+            All
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -258,7 +238,7 @@ export default function RequestScreen() {
               activeTab === 'pending' && styles.activeTabText,
             ]}
           >
-            Pending Requests
+            Pending
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -271,29 +251,15 @@ export default function RequestScreen() {
               activeTab === 'rejected' && styles.activeTabText,
             ]}
           >
-            Rejected Requests
+            Rejected
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Request List */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {getFilteredRequests().map((request) => renderRequestCard(request))}
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="home" size={24} color="#1E4B46" />
-          <Text style={styles.navTextActive}>Home</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="notifications-outline" size={24} color="#999" />
-          <Text style={styles.navText}>Notifications</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Confirmation Modal */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -325,20 +291,24 @@ export default function RequestScreen() {
                 </View>
 
                 <View style={styles.modalSection}>
+                  <Text style={styles.modalLabel}>ADDRESS</Text>
+                  <Text style={styles.modalValue}>{selectedRequest.address}</Text>
+                </View>
+
+                <View style={styles.modalSection}>
                   <Text style={styles.modalLabel}>OWNER</Text>
                   <Text style={styles.modalValue}>{selectedRequest.owner}</Text>
                 </View>
               </View>
             )}
 
-            {/* Conditional Buttons based on Status */}
             {selectedRequest && selectedRequest.status === 'pending' && (
               <View style={styles.modalButtons}>
                 <TouchableOpacity 
                   style={styles.confirmButton}
                   onPress={handleConfirmApprove}
                 >
-                  <Text style={styles.confirmButtonText}>Confirm</Text>
+                  <Text style={styles.confirmButtonText}>Approve</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={styles.rejectButton}
@@ -349,7 +319,6 @@ export default function RequestScreen() {
               </View>
             )}
 
-            {/* No buttons for Approved and Rejected requests */}
             {selectedRequest && (selectedRequest.status === 'approved' || selectedRequest.status === 'rejected') && (
               <TouchableOpacity 
                 style={styles.closeButton}
@@ -368,31 +337,22 @@ export default function RequestScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E8F5F3',
+    backgroundColor: '#f5f5f5',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#9BD7CD',
-  },
-  menuButton: {
-    padding: 8,
-  },
-  menuLine: {
-    width: 20,
-    height: 2,
-    backgroundColor: '#1E4B46',
-    marginVertical: 2,
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1E4B46',
-    position: 'absolute',
-    right: 16,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -418,6 +378,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingTop: 8,
     justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   tab: {
     flex: 1,
@@ -430,14 +392,14 @@ const styles = StyleSheet.create({
     borderBottomColor: '#1E4B46',
   },
   tabText: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#999',
     fontWeight: '500',
     textAlign: 'center',
-    flexWrap: 'nowrap',
   },
   activeTabText: {
     color: '#1E4B46',
+    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
@@ -501,12 +463,11 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    marginTop: 8,
+    marginTop: 12,
     gap: 12,
   },
   approveButton: {
     flex: 1,
-    flexDirection: 'row',
     backgroundColor: '#1E4B46',
     paddingVertical: 12,
     paddingHorizontal: 10,
@@ -532,33 +493,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   viewDetailsButtonText: {
-    color: '#000',
+    color: '#1E4B46',
     fontSize: 14,
     fontWeight: '600',
   },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#FFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    paddingVertical: 8,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    gap: 4,
-  },
-  navText: {
-    fontSize: 12,
-    color: '#999',
-  },
-  navTextActive: {
-    fontSize: 12,
-    color: '#1E4B46',
-    fontWeight: '600',
-  },
-  // Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -621,7 +559,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   modalSection: {
-    marginTop: 4,
+    marginTop: 12,
   },
   modalButtons: {
     flexDirection: 'row',
@@ -629,7 +567,6 @@ const styles = StyleSheet.create({
   },
   confirmButton: {
     flex: 1,
-    flexDirection: 'row',
     backgroundColor: '#1E4B46',
     paddingVertical: 12,
     paddingHorizontal: 16,
