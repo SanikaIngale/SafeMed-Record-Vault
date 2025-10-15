@@ -39,7 +39,7 @@ const QRCodeScreen = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>My QR Code</Text>
         <TouchableOpacity onPress={handleShare}>
-          <Icon name="share-variant" size={24} color="#2d7a6e" />
+          <Icon name="share-variant" size={24} color="#1E4B46" />
         </TouchableOpacity>
       </View>
 
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   },
   downloadButton: {
     flexDirection: 'row',
-    backgroundColor: '#2d7a6e',
+    backgroundColor: '#1E4B46',
     paddingVertical: 16,
     paddingHorizontal: 30,
     borderRadius: 30,

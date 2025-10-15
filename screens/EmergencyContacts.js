@@ -67,7 +67,7 @@ const EmergencyContacts = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Emergency Contacts</Text>
         <TouchableOpacity onPress={handleAddContact}>
-          <Icon name="plus" size={24} color="#2d7a6e" />
+          <Icon name="plus" size={24} color="#1E4B46" />
         </TouchableOpacity>
       </View>
 
@@ -80,7 +80,7 @@ const EmergencyContacts = ({ navigation }) => {
           <View key={contact.id} style={styles.contactCard}>
             <View style={styles.contactInfo}>
               <View style={styles.iconCircle}>
-                <Icon name="account" size={24} color="#2d7a6e" />
+                <Icon name="account" size={24} color="#1E4B46" />
               </View>
               <View style={styles.contactDetails}>
                 <Text style={styles.contactName}>{contact.name}</Text>
@@ -93,7 +93,7 @@ const EmergencyContacts = ({ navigation }) => {
                 style={styles.actionButton}
                 onPress={() => handleEditContact(contact)}
               >
-                <Icon name="pencil" size={20} color="#2d7a6e" />
+                <Icon name="pencil" size={20} color="#1E4B46" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.actionButton}
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   },
   contactPhone: {
     fontSize: 14,
-    color: '#2d7a6e',
+    color: '#1E4B46',
   },
   contactActions: {
     flexDirection: 'row',
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveButton: {
-    backgroundColor: '#2d7a6e',
+    backgroundColor: '#1E4B46',
   },
   saveButtonText: {
     color: '#fff',

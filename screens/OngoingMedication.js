@@ -95,7 +95,7 @@ const OngoingMedication = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ongoing Medication</Text>
         <TouchableOpacity onPress={handleAddMedication}>
-          <Icon name="plus" size={24} color="#2d7a6e" />
+          <Icon name="plus" size={24} color="#1E4B46" />
         </TouchableOpacity>
       </View>
 
@@ -108,7 +108,7 @@ const OngoingMedication = ({ navigation }) => {
           <View key={med.id} style={styles.medicationCard}>
             <View style={styles.cardHeader}>
               <View style={styles.iconWrapper}>
-                <Icon name="pill" size={24} color="#2d7a6e" />
+                <Icon name="pill" size={24} color="#1E4B46" />
               </View>
               <View style={styles.headerInfo}>
                 <Text style={styles.medicationName}>{med.name}</Text>
@@ -119,7 +119,7 @@ const OngoingMedication = ({ navigation }) => {
                   style={styles.actionIcon}
                   onPress={() => handleEditMedication(med)}
                 >
-                  <Icon name="pencil" size={18} color="#2d7a6e" />
+                  <Icon name="pencil" size={18} color="#1E4B46" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.actionIcon}
@@ -380,7 +380,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveButton: {
-    backgroundColor: '#2d7a6e',
+    backgroundColor: '#1E4B46',
   },
   saveButtonText: {
     color: '#fff',

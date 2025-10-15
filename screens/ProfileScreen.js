@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   logoutButton: {
     marginHorizontal: 20,
     marginVertical: 30,
-    backgroundColor: '#2d7a6e',
+    backgroundColor: '#1E4B46',
     borderRadius: 30,
     paddingVertical: 16,
     alignItems: 'center',

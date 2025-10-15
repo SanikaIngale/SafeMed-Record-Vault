@@ -85,7 +85,7 @@ const VaccinationHistory = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Vaccination History</Text>
         <TouchableOpacity onPress={handleAddVaccination}>
-          <Icon name="plus" size={24} color="#2d7a6e" />
+          <Icon name="plus" size={24} color="#1E4B46" />
         </TouchableOpacity>
       </View>
 
@@ -135,7 +135,7 @@ const VaccinationHistory = ({ navigation }) => {
               </View>
               {vaccination.nextDue !== 'N/A' && (
                 <View style={styles.nextDueContainer}>
-                  <Icon name="clock-outline" size={16} color="#2d7a6e" />
+                  <Icon name="clock-outline" size={16} color="#1E4B46" />
                   <Text style={styles.nextDueText}>
                     Next due: {vaccination.nextDue}
                   </Text>
@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   summaryNumber: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#2d7a6e',
+    color: '#1E4B46',
     marginBottom: 5,
   },
   summaryLabel: {
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#2d7a6e',
+    backgroundColor: '#1E4B46',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -346,7 +346,7 @@ const styles = StyleSheet.create({
   },
   nextDueText: {
     fontSize: 14,
-    color: '#2d7a6e',
+    color: '#1E4B46',
     fontWeight: '500',
     marginLeft: 8,
     flex: 1,
@@ -411,7 +411,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveButton: {
-    backgroundColor: '#2d7a6e',
+    backgroundColor: '#1E4B46',
   },
   saveButtonText: {
     color: '#fff',

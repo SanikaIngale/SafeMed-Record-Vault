@@ -66,7 +66,7 @@ const AllergiesConditions = ({ navigation }) => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Allergies & Conditions</Text>
         <TouchableOpacity onPress={handleAddItem}>
-          <Icon name="plus" size={24} color="#2d7a6e" />
+          <Icon name="plus" size={24} color="#1E4B46" />
         </TouchableOpacity>
       </View>
 
@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: '#2d7a6e',
+    borderBottomColor: '#1E4B46',
   },
   tabText: {
     fontSize: 16,
