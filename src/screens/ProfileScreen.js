@@ -1,17 +1,20 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-  Alert,
-} from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import { useState } from 'react';
+import {
+  Alert,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import BottomNavigation from '../components/BottomNavigation';
 
 const ProfileScreen = ({ navigation }) => {
+  const [activeNav, setActiveNav] = useState('Profile');
+
   const menuItems = [
     {
       section: 'Account',
@@ -97,8 +100,24 @@ const ProfileScreen = ({ navigation }) => {
     );
   };
 
+  const handleNavigation = (navName) => {
+    setActiveNav(navName);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header with Back Arrow */}
+      <View style={styles.header}>
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
+          <Icon name="arrow-left" size={24} color="#1E4B46" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Profile</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Profile Header */}
         <View style={styles.profileHeader}>
@@ -139,7 +158,16 @@ const ProfileScreen = ({ navigation }) => {
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
+
+        <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation 
+        activeNav={activeNav} 
+        onNavigate={handleNavigation}
+        navigation={navigation}
+      />
     </SafeAreaView>
   );
 };
@@ -149,16 +177,40 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  backButton: {
+    padding: 5,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1E4B46',
+  },
+  headerSpacer: {
+    width: 34, // Match the back button width for centering
+  },
   profileHeader: {
     alignItems: 'center',
     paddingVertical: 30,
     backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
   },
   profileImage: {
     width: 120,
     height: 120,
     borderRadius: 60,
     marginBottom: 15,
+    backgroundColor: '#C8A2D0',
   },
   profileName: {
     fontSize: 24,
@@ -173,21 +225,27 @@ const styles = StyleSheet.create({
   editProfileText: {
     color: '#1E4B46',
     fontSize: 14,
+    fontWeight: '600',
   },
   section: {
     marginTop: 20,
     paddingHorizontal: 20,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#1E4B46',
-    marginBottom: 15,
+    marginBottom: 12,
   },
   menuCard: {
     backgroundColor: '#fff',
     borderRadius: 15,
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   menuItem: {
     flexDirection: 'row',
@@ -202,20 +260,29 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 15,
     fontSize: 16,
-    color: '#1E4B46',
+    color: '#333',
   },
   logoutButton: {
     marginHorizontal: 20,
-    marginVertical: 30,
+    marginTop: 30,
+    marginBottom: 20,
     backgroundColor: '#1E4B46',
     borderRadius: 30,
     paddingVertical: 16,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   logoutText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  bottomSpacing: {
+    height: 20,
   },
 });
 

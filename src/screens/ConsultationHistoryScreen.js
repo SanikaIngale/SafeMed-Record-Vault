@@ -1,20 +1,21 @@
-import React from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-} from 'react-native';
-import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
-import {
-  useFonts,
   Poppins_400Regular,
   Poppins_600SemiBold,
   Poppins_700Bold,
+  useFonts,
 } from '@expo-google-fonts/poppins';
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import { useState } from 'react';
+import {
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import BottomNavigation from '../components/BottomNavigation';
 
 const consultations = [
   {
@@ -70,6 +71,8 @@ const ConsultationCard = ({ consultation, onPress }) => (
 );
 
 const ConsultationHistoryScreen = ({ navigation }) => {
+  const [activeNav, setActiveNav] = useState('Home');
+
   let [fontsLoaded] = useFonts({
     Poppins_400Regular,
     Poppins_600SemiBold,
@@ -82,6 +85,10 @@ const ConsultationHistoryScreen = ({ navigation }) => {
 
   const handleViewDetails = (consultation) => {
     navigation.navigate('VisitSummary', { consultation });
+  };
+
+  const handleNavigation = (navName) => {
+    setActiveNav(navName);
   };
 
   return (
@@ -106,6 +113,13 @@ const ConsultationHistoryScreen = ({ navigation }) => {
           />
         ))}
       </ScrollView>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation 
+        activeNav={activeNav} 
+        onNavigate={handleNavigation}
+        navigation={navigation}
+      />
     </SafeAreaView>
   );
 };
@@ -141,6 +155,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingBottom: 20, // Add padding for bottom nav
   },
   card: {
     backgroundColor: '#FFFFFF',

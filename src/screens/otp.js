@@ -32,17 +32,22 @@ export default function OTPVerificationScreen({ navigation, route }) {
   const handleVerify = () => {
     const otpCode = otp.join('');
     if (otpCode.length === 4) {
+      // Mark user as authenticated
+      if (setIsAuthenticated) {
+        setIsAuthenticated(true);
+      }
+      
       Alert.alert(
         'Success!',
-        `OTP verified successfully: ${otpCode}`,
+        'OTP verified successfully',
         [
           {
             text: 'Continue',
             onPress: () => {
-              // Mark user as authenticated and navigate to Profile
+              // Navigate to Homepage and reset navigation stack
               navigation.reset({
                 index: 0,
-                routes: [{ name: 'Profile' }],
+                routes: [{ name: 'Homepage' }],
               });
             },
           },

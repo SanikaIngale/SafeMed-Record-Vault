@@ -1,20 +1,22 @@
-import React, { useState } from 'react';
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-  TextInput,
   Modal,
   Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import BottomNavigation from '../components/BottomNavigation';
 
 export default function RequestScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('all');
+  const [activeNav, setActiveNav] = useState('Requests');
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
 
@@ -134,6 +136,10 @@ export default function RequestScreen({ navigation }) {
 
   const handleCloseModal = () => {
     setModalVisible(false);
+  };
+
+  const handleNavigation = (navName) => {
+    setActiveNav(navName);
   };
 
   const renderRequestCard = (request) => (
@@ -258,6 +264,7 @@ export default function RequestScreen({ navigation }) {
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {getFilteredRequests().map((request) => renderRequestCard(request))}
+        <View style={styles.bottomSpacing} />
       </ScrollView>
 
       <Modal
@@ -330,6 +337,13 @@ export default function RequestScreen({ navigation }) {
           </Pressable>
         </Pressable>
       </Modal>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation 
+        activeNav={activeNav} 
+        onNavigate={handleNavigation}
+        navigation={navigation}
+      />
     </SafeAreaView>
   );
 }
@@ -405,6 +419,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 16,
+  },
+  bottomSpacing: {
+    height: 20,
   },
   card: {
     backgroundColor: '#FFF',

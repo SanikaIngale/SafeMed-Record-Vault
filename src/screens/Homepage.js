@@ -1,17 +1,22 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
+import {
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import BottomNavigation from '../components/BottomNavigation';
 
-export default function HomePage() {
+export default function HomePage({ navigation }) {
   const [activeNav, setActiveNav] = useState('Home');
+
+  const handleNavigation = (navName) => {
+    setActiveNav(navName);
+  };
 
   const recentReports = [
     {
@@ -49,46 +54,22 @@ export default function HomePage() {
     },
   ];
 
-  const careNetwork = [
-    {
-      id: 1,
-      name: 'Dr. Steve John',
-      role: 'Endocrinologist',
-      initials: 'SJ',
-    },
-    {
-      id: 2,
-      name: 'Juliana',
-      role: 'Health Coach',
-      initials: 'J',
-    },
-    {
-      id: 3,
-      name: 'STV Med',
-      role: 'D Clinic',
-      initials: 'SM',
-    },
-    {
-      id: 4,
-      name: 'Dr. Muling',
-      role: 'Cardiologist',
-      initials: 'DM',
-    },
-  ];
-
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#9BD7CD" />
 
       <ScrollView showsVerticalScrollIndicator={false}>
-  {/* Header - Teal Background */}
-  <View style={styles.headerSection}>
-    {/* Top Navigation */}
-    <View style={styles.topNav}>
-      <TouchableOpacity style={styles.gridIcon}>
-        <Ionicons name="scan" size={24} color="#FFF" />
-      </TouchableOpacity>
-        </View>
+        {/* Header - Teal Background */}
+        <View style={styles.headerSection}>
+          {/* Top Navigation */}
+          <View style={styles.topNav}>
+            <TouchableOpacity 
+              style={styles.gridIcon}
+              onPress={() => navigation.navigate('QRCode')}
+            >
+              <Ionicons name="scan" size={24} color="#FFF" />
+            </TouchableOpacity>
+          </View>
 
           {/* Welcome Section */}
           <View style={styles.welcomeSection}>
@@ -124,7 +105,7 @@ export default function HomePage() {
         <View style={styles.timelineSection}>
           <View style={styles.timelineHeader}>
             <Text style={styles.sectionTitle}>Consultation Timeline</Text>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('ConsultationHistory')}>
               <Text style={styles.viewAll}>View All</Text>
             </TouchableOpacity>
           </View>
@@ -168,7 +149,10 @@ export default function HomePage() {
                     </View>
                   </View>
 
-                  <TouchableOpacity style={styles.viewButton}>
+                  <TouchableOpacity 
+                    style={styles.viewButton}
+                    onPress={() => navigation.navigate('VisitSummary')}
+                  >
                     <Text style={styles.viewButtonText}>View Details</Text>
                   </TouchableOpacity>
                 </View>
@@ -212,84 +196,12 @@ export default function HomePage() {
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveNav('Requests')}
-        >
-          <Ionicons
-            name="business"
-            size={24}
-            color={activeNav === 'Requests' ? '#1E4B46' : '#999'}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              activeNav === 'Requests' && styles.navLabelActive,
-            ]}
-          >
-            Requests
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveNav('Reports')}
-        >
-          <Ionicons
-            name="document"
-            size={24}
-            color={activeNav === 'Reports' ? '#1E4B46' : '#999'}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              activeNav === 'Reports' && styles.navLabelActive,
-            ]}
-          >
-            Reports
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveNav('Home')}
-        >
-          <Ionicons
-            name="home"
-            size={24}
-            color={activeNav === 'Home' ? '#1E4B46' : '#999'}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              activeNav === 'Home' && styles.navLabelActive,
-            ]}
-          >
-            Home
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setActiveNav('Profile')}
-        >
-          <Ionicons
-            name="person"
-            size={24}
-            color={activeNav === 'Profile' ? '#1E4B46' : '#999'}
-          />
-          <Text
-            style={[
-              styles.navLabel,
-              activeNav === 'Profile' && styles.navLabelActive,
-            ]}
-          >
-            Profile
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* Bottom Navigation - Passing navigation prop */}
+      <BottomNavigation 
+        activeNav={activeNav} 
+        onNavigate={handleNavigation}
+        navigation={navigation}
+      />
     </SafeAreaView>
   );
 }
@@ -313,26 +225,6 @@ const styles = StyleSheet.create({
   },
   gridIcon: {
     padding: 8,
-  },
-  notificationIcon: {
-    padding: 8,
-    position: 'relative',
-  },
-  notificationBadge: {
-    position: 'absolute',
-    right: 0,
-    top: 0,
-    backgroundColor: '#FF6B6B',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  badgeText: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: 'bold',
   },
   welcomeSection: {
     flexDirection: 'row',
@@ -403,6 +295,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+  },
+  viewAll: {
+    fontSize: 14,
+    color: '#1E4B46',
+    fontWeight: '600',
   },
   timeline: {
     paddingLeft: 20,
@@ -563,32 +460,6 @@ const styles = StyleSheet.create({
   },
   reportIcon: {
     padding: 4,
-  },
-  careNetworkSection: {
-    paddingHorizontal: 16,
-    marginBottom: 24,
-  },
-  bottomNav: {
-    flexDirection: 'row',
-    backgroundColor: '#FFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    paddingVertical: 8,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  navLabel: {
-    fontSize: 11,
-    color: '#999',
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  navLabelActive: {
-    color: '#1E4B46',
-    fontWeight: '600',
   },
   bottomSpacing: {
     height: 20,

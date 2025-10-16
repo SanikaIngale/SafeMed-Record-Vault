@@ -7,6 +7,7 @@ import AllergiesConditions from '../src/screens/AllergiesConditions';
 import ConsultationHistoryScreen from '../src/screens/ConsultationHistoryScreen';
 import EditPersonalInfo from '../src/screens/EditPersonalInfo';
 import EmergencyContacts from '../src/screens/EmergencyContacts';
+import HomePage from '../src/screens/Homepage';
 import OngoingMedication from '../src/screens/OngoingMedication';
 import OTPVerificationScreen from '../src/screens/otp';
 import ProfileScreen from '../src/screens/ProfileScreen';
@@ -27,7 +28,7 @@ const AppNavigator = () => {
   return (
     <NavigationContainer>
       <Stack.Navigator
-        initialRouteName={isAuthenticated ? "Profile" : "SignIn"}
+        initialRouteName={isAuthenticated ? "Homepage" : "SignIn"}
         screenOptions={{
           headerShown: false,
           animation: 'slide_from_right',
@@ -53,6 +54,7 @@ const AppNavigator = () => {
           </>
         ) : (
           <>
+            <Stack.Screen name="Homepage" component={HomePage} /> 
             <Stack.Screen name="Profile" component={ProfileScreen} />
             <Stack.Screen name="EditPersonalInfo" component={EditPersonalInfo} />
             <Stack.Screen name="EmergencyContacts" component={EmergencyContacts} />
