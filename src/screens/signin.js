@@ -104,3 +104,87 @@ export default function SignInScreen({ navigation, route }) {
     </ScrollView>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flexGrow: 1,
+    backgroundColor: '#fff',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1E4B46',
+  },
+  headerSpacer: {
+    width: 28,
+  },
+  formContainer: {
+    flex: 1,
+    paddingHorizontal: 30,
+    paddingTop: 40,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    paddingHorizontal: 15,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    paddingVertical: 15,
+    fontSize: 16,
+    color: '#333',
+  },
+  eyeIcon: {
+    padding: 5,
+  },
+  forgotPassword: {
+    color: '#1E4B46',
+    fontSize: 14,
+    textAlign: 'right',
+    marginBottom: 30,
+    fontWeight: '500',
+  },
+  signInButton: {
+    backgroundColor: '#1E4B46',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  signInButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  signUpContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  signUpText: {
+    color: '#666',
+    fontSize: 14,
+  },
+  signUpLink: {
+    color: '#1E4B46',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});

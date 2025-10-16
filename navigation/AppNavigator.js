@@ -1,23 +1,22 @@
-import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { useState } from 'react';
 
-// Import authentication screens
-import SignInScreen from '../screens/signin';
-import SignUpScreen from '../screens/signup';
-import OTPVerificationScreen from '../screens/otp';
+// Update ALL imports to use ../src/screens/ instead of ../screens/
+import AllergiesConditions from '../src/screens/AllergiesConditions';
+import ConsultationHistoryScreen from '../src/screens/ConsultationHistoryScreen';
+import EditPersonalInfo from '../src/screens/EditPersonalInfo';
+import EmergencyContacts from '../src/screens/EmergencyContacts';
+import OngoingMedication from '../src/screens/OngoingMedication';
+import OTPVerificationScreen from '../src/screens/otp';
+import ProfileScreen from '../src/screens/ProfileScreen';
+import QRCodeScreen from '../src/screens/QRCodeScreen';
+import RequestScreen from '../src/screens/RequestScreen';
+import SignInScreen from '../src/screens/signin';
+import SignUpScreen from '../src/screens/signup';
+import VaccinationHistory from '../src/screens/VaccinationHistory';
+import VisitSummaryScreen from '../src/screens/VisitSummaryScreen';
 
-// Import main screens
-import ProfileScreen from '../screens/ProfileScreen';
-import EditPersonalInfo from '../screens/EditPersonalInfo';
-import EmergencyContacts from '../screens/EmergencyContacts';
-import QRCodeScreen from '../screens/QRCodeScreen';
-import AllergiesConditions from '../screens/AllergiesConditions';
-import OngoingMedication from '../screens/OngoingMedication';
-import VaccinationHistory from '../screens/VaccinationHistory';
-import RequestScreen from '../screens/RequestScreen';
-import ConsultationHistoryScreen from '../screens/ConsultationHistoryScreen';
-import VisitSummaryScreen from '../screens/VisitSummaryScreen';
 
 const Stack = createNativeStackNavigator();
 
