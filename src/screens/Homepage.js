@@ -35,7 +35,7 @@ export default function HomePage({ navigation }) {
     },
   ];
 
-  const consultationTimeline = [
+    const consultationTimeline = [
     {
       id: 1,
       date: '05 July 2025',
@@ -46,17 +46,17 @@ export default function HomePage({ navigation }) {
     },
     {
       id: 2,
-      date: '28 June 2025',
-      hospital: 'City Medical Center',
-      doctor: 'Dr. John Smith',
-      type: 'Cardiac Consultation',
+      date: '12 June 2025',
+      hospital: 'General Hospital',
+      doctor: 'Dr. Anya Sharma',
+      type: 'General Checkup',
       time: '02:00 PM',
     },
   ];
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#9BD7CD" />
+      <StatusBar barStyle="light-content" backgroundColor="#1E4B46" />
 
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header - Teal Background */}
@@ -88,7 +88,7 @@ export default function HomePage({ navigation }) {
           <View style={styles.userInfoContainer}>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Age</Text>
-              <Text style={styles.infoValue}>38 yrs</Text>
+              <Text style={styles.infoValue}>30 yrs</Text>
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Gender</Text>
@@ -121,7 +121,7 @@ export default function HomePage({ navigation }) {
                 {/* Timeline Dot */}
                 <View style={styles.timelineDotContainer}>
                   <View style={styles.timelineDot}>
-                    <Ionicons name="hospital" size={14} color="#FFF" />
+                    <Ionicons name="medkit" size={14} color="#FFF" />
                   </View>
                 </View>
 
@@ -151,7 +151,14 @@ export default function HomePage({ navigation }) {
 
                   <TouchableOpacity 
                     style={styles.viewButton}
-                    onPress={() => navigation.navigate('VisitSummary')}
+                    onPress={() => navigation.navigate('VisitSummary', {
+                      consultation: {
+                        doctor: consultation.doctor,
+                        clinic: consultation.hospital,
+                        date: consultation.date,
+                        reason: 'Ongoing tiredness and periodic throbbing headaches',
+                      }
+                    })}
                   >
                     <Text style={styles.viewButtonText}>View Details</Text>
                   </TouchableOpacity>
@@ -212,9 +219,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
   headerSection: {
-    backgroundColor: '#9BD7CD',
+    backgroundColor: '#1E4B46',
     paddingHorizontal: 16,
     paddingBottom: 24,
+    paddingTop: 16,
   },
   topNav: {
     flexDirection: 'row',

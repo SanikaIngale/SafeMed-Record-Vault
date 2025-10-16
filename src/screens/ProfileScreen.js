@@ -62,23 +62,6 @@ const ProfileScreen = ({ navigation }) => {
         },
       ],
     },
-    {
-      section: 'Health Records',
-      items: [
-        {
-          id: 'consultation',
-          icon: 'hospital-box',
-          title: 'Consultation History',
-          screen: 'ConsultationHistory',
-        },
-        {
-          id: 'requests',
-          icon: 'file-document-outline',
-          title: 'Data Access Requests',
-          screen: 'Request',
-        },
-      ],
-    },
   ];
 
   const handleLogout = () => {
@@ -106,7 +89,6 @@ const ProfileScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header with Back Arrow */}
       <View style={styles.header}>
         <TouchableOpacity 
           onPress={() => navigation.goBack()}
@@ -119,19 +101,16 @@ const ProfileScreen = ({ navigation }) => {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Profile Header */}
         <View style={styles.profileHeader}>
-          <Image
-            source={{ uri: 'https://via.placeholder.com/120' }}
-            style={styles.profileImage}
-          />
+          <View style={styles.profileImage}>
+            <Text style={styles.profileInitial}>RS</Text>
+          </View>
           <Text style={styles.profileName}>Ruchita Sharma</Text>
           <TouchableOpacity style={styles.editProfileButton}>
             <Text style={styles.editProfileText}>Edit Profile</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Menu Sections */}
         {menuItems.map((section, index) => (
           <View key={index} style={styles.section}>
             <Text style={styles.sectionTitle}>{section.section}</Text>
@@ -154,7 +133,6 @@ const ProfileScreen = ({ navigation }) => {
           </View>
         ))}
 
-        {/* Logout Button */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
@@ -162,7 +140,6 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Bottom Navigation */}
       <BottomNavigation 
         activeNav={activeNav} 
         onNavigate={handleNavigation}
@@ -183,6 +160,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
+    paddingTop: 40,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
@@ -196,7 +174,7 @@ const styles = StyleSheet.create({
     color: '#1E4B46',
   },
   headerSpacer: {
-    width: 34, // Match the back button width for centering
+    width: 34,
   },
   profileHeader: {
     alignItems: 'center',
@@ -211,6 +189,15 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     marginBottom: 15,
     backgroundColor: '#C8A2D0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+  },
+  profileInitial: {
+    fontSize: 40,
+    fontWeight: 'bold',
+    color: '#FFF',
   },
   profileName: {
     fontSize: 24,

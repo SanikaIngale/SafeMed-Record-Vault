@@ -10,7 +10,7 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import { MaterialCommunityIcons as Icon, Ionicons } from '@expo/vector-icons';
 
 const AllergiesConditions = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('allergies');
@@ -202,7 +202,7 @@ const AllergiesConditions = ({ navigation }) => {
               <View key={condition.id} style={styles.card}>
                 <View style={styles.cardHeader}>
                   <View style={styles.cardTitleRow}>
-                    <Icon name="file-medical" size={20} color="#3498db" />
+                    <Icon name="medical-bag" size={20} color="#3498db" />
                     <Text style={styles.cardTitle}>{condition.name}</Text>
                   </View>
                   <TouchableOpacity onPress={() => handleDeleteCondition(condition.id)}>
@@ -310,6 +310,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
+    paddingTop: 45,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',

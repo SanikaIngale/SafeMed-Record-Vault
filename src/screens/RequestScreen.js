@@ -19,6 +19,7 @@ export default function RequestScreen({ navigation }) {
   const [activeNav, setActiveNav] = useState('Requests');
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [requests, setRequests] = useState([
     {
@@ -101,14 +102,20 @@ export default function RequestScreen({ navigation }) {
   };
 
   const getFilteredRequests = () => {
-    if (activeTab === 'all') {
-      return requests;
-    } else if (activeTab === 'pending') {
-      return requests.filter(request => request.status === 'pending');
-    } else if (activeTab === 'rejected') {
-      return requests.filter(request => request.status === 'rejected');
+    // First filter by status
+    let filteredByStatus = requests;
+    if (activeTab !== 'all') {
+      filteredByStatus = requests.filter(request => request.status === activeTab);
     }
-    return requests;
+
+    // Then filter by search query
+    if (searchQuery.trim()) {
+      return filteredByStatus.filter(request =>
+        request.hospitalName.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+
+    return filteredByStatus;
   };
 
   const handleViewDetails = (request) => {
@@ -178,22 +185,13 @@ export default function RequestScreen({ navigation }) {
       </View>
 
       <View style={styles.buttonContainer}>
-        {request.status === 'pending' && (
-          <TouchableOpacity 
-            style={styles.approveButton}
-            onPress={() => handleViewDetails(request)}
-          >
-            <Text style={styles.approveButtonText}>View Details</Text>
-          </TouchableOpacity>
-        )}
         <TouchableOpacity
-          style={[
-            styles.viewDetailsButton,
-            (request.status === 'approved' || request.status === 'rejected') && styles.viewDetailsButtonFull,
-          ]}
+          style={[styles.approveButton, styles.viewDetailsButtonFull]}
           onPress={() => handleViewDetails(request)}
         >
-          <Text style={styles.viewDetailsButtonText}>View Details</Text>
+          <Text style={styles.approveButtonText}>
+            View Details
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -212,11 +210,13 @@ export default function RequestScreen({ navigation }) {
       </View>
 
       <View style={styles.searchContainer}>
-        <Icon name="search" size={20} color="#999" />
+        <Icon name="magnify" size={20} color="#999" />
         <TextInput
           style={styles.searchInput}
           placeholder="Search by Hospital Name"
           placeholderTextColor="#999"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
         />
       </View>
 
@@ -245,6 +245,19 @@ export default function RequestScreen({ navigation }) {
             ]}
           >
             Pending
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'approved' && styles.activeTab]}
+          onPress={() => setActiveTab('approved')}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === 'approved' && styles.activeTabText,
+            ]}
+          >
+            Approved
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -338,7 +351,6 @@ export default function RequestScreen({ navigation }) {
         </Pressable>
       </Modal>
 
-      {/* Bottom Navigation */}
       <BottomNavigation 
         activeNav={activeNav} 
         onNavigate={handleNavigation}
@@ -359,6 +371,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingVertical: 15,
+    paddingTop: 45,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',

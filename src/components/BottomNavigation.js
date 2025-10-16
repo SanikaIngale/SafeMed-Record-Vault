@@ -3,21 +3,22 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function BottomNavigation({ activeNav, onNavigate, navigation }) {
   const navItems = [
+    { name: 'Home', icon: 'home', screen: 'Homepage' },
     { name: 'Requests', icon: 'business', screen: 'Request' },
     { name: 'Reports', icon: 'document', screen: null },
-    { name: 'Home', icon: 'home', screen: 'Homepage' },
     { name: 'Profile', icon: 'person', screen: 'Profile' },
   ];
 
   const handlePress = (item) => {
-    onNavigate(item.name);
+    // Set active state first
+    if (item.screen === 'Homepage') {
+      onNavigate('Home');
+    } else {
+      onNavigate(item.name);
+    }
     
-    // Only navigate if screen exists
+    // Then navigate if screen exists
     if (item.screen && navigation) {
-      if (item.screen === 'Homepage') {
-        // If already on homepage, scroll to top or do nothing
-        return;
-      }
       navigation.navigate(item.screen);
     }
   };
@@ -29,17 +30,23 @@ export default function BottomNavigation({ activeNav, onNavigate, navigation }) 
           key={item.name}
           style={styles.navItem}
           onPress={() => handlePress(item)}
-          disabled={!item.screen} // Disable if no screen defined
+          disabled={!item.screen}
         >
           <Ionicons
             name={item.icon}
             size={24}
-            color={activeNav === item.name ? '#1E4B46' : item.screen ? '#999' : '#ccc'}
+            color={
+              (activeNav === item.name || (!activeNav && item.name === 'Home')) 
+                ? '#1E4B46' 
+                : item.screen 
+                  ? '#999' 
+                  : '#ccc'
+            }
           />
           <Text
             style={[
               styles.navLabel,
-              activeNav === item.name && styles.navLabelActive,
+              (activeNav === item.name || (!activeNav && item.name === 'Home')) && styles.navLabelActive,
               !item.screen && styles.navLabelDisabled,
             ]}
           >
