@@ -1,31 +1,76 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-  Modal,
-  TextInput,
-  Alert,
-} from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
 const EmergencyContacts = ({ navigation }) => {
-  const [contacts, setContacts] = useState([
-    { id: 1, name: 'Rajesh Sharma', relation: 'Father', phone: '+91 98765 11111' },
-    { id: 2, name: 'Priya Sharma', relation: 'Mother', phone: '+91 98765 22222' },
-    { id: 3, name: 'Dr. Amit Patel', relation: 'Family Doctor', phone: '+91 98765 33333' },
-  ]);
-
+  const [contacts, setContacts] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     name: '',
     relation: '',
     phone: '',
   });
+
+  useEffect(() => {
+    fetchPatientData();
+  }, []);
+
+  const fetchPatientData = async () => {
+    try {
+      setLoading(true);
+      
+      const apiUrl = Platform.OS === 'android' ? 'http://10.185.77.5:5000' : 'http://localhost:5000';
+      
+      // Get patient_id from AsyncStorage
+      const patientId = await AsyncStorage.getItem('patient_id');
+      
+      if (!patientId) {
+        Alert.alert('Error', 'Patient ID not found. Please login again.');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch patient data
+      const response = await fetch(`${apiUrl}/api/patients/${patientId}`);
+      const patientData = await response.json();
+
+      if (patientData && patientData.success !== false) {
+        // Set emergency contact from patient data
+        if (patientData.emergency_contact) {
+          const emergencyContact = {
+            id: 1,
+            name: patientData.emergency_contact.name,
+            relation: patientData.emergency_contact.relation,
+            phone: patientData.emergency_contact.phone,
+            isPrimary: true,
+          };
+          setContacts([emergencyContact]);
+        }
+      }
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching patient data:', error);
+      Alert.alert('Error', 'Failed to load data. Please try again.');
+      setLoading(false);
+    }
+  };
 
   const handleAddContact = () => {
     setEditingContact(null);
@@ -44,18 +89,40 @@ const EmergencyContacts = ({ navigation }) => {
   };
 
   const handleDeleteContact = (id) => {
-    Alert.alert('Confirm Delete', 'Are you sure you want to delete this contact?', [
-      { text: 'Cancel' },
-      {
-        text: 'Delete',
-        onPress: () => setContacts(contacts.filter(contact => contact.id !== id)),
-      },
-    ]);
+    Alert.alert(
+      'Confirm Delete', 
+      'Are you sure you want to delete this contact?', 
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            setContacts(contacts.filter(contact => contact.id !== id));
+            Alert.alert('Success', 'Contact deleted successfully!');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleCallContact = (phone) => {
+    const phoneNumber = phone.replace(/[^0-9+]/g, ''); // Remove non-numeric characters except +
+    Linking.openURL(`tel:${phoneNumber}`).catch(() => {
+      Alert.alert('Error', 'Unable to make a call');
+    });
   };
 
   const handleSaveContact = () => {
     if (!formData.name || !formData.relation || !formData.phone) {
       Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    // Validate phone number (basic validation)
+    const phoneRegex = /^[+]?[\d\s-()]+$/;
+    if (!phoneRegex.test(formData.phone)) {
+      Alert.alert('Error', 'Please enter a valid phone number');
       return;
     }
 
@@ -65,11 +132,31 @@ const EmergencyContacts = ({ navigation }) => {
           ? { ...contact, ...formData }
           : contact
       ));
+      Alert.alert('Success', 'Contact updated successfully!');
     } else {
-      setContacts([...contacts, { id: Date.now(), ...formData }]);
+      setContacts([...contacts, { id: Date.now(), ...formData, isPrimary: false }]);
+      Alert.alert('Success', 'Contact added successfully!');
     }
     setModalVisible(false);
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Icon name="arrow-left" size={24} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Emergency Contacts</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1E4B46" />
+          <Text style={styles.loadingText}>Loading contacts...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -84,38 +171,68 @@ const EmergencyContacts = ({ navigation }) => {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.description}>
-          Add trusted contacts who can be reached in case of emergency
-        </Text>
+        <View style={styles.infoCard}>
+          <Icon name="information" size={20} color="#1E4B46" />
+          <Text style={styles.infoText}>
+            These contacts can be reached in case of emergency. Your primary contact is synced from your medical records.
+          </Text>
+        </View>
 
-        {contacts.map((contact) => (
-          <View key={contact.id} style={styles.contactCard}>
-            <View style={styles.contactInfo}>
-              <View style={styles.iconCircle}>
-                <Icon name="account" size={24} color="#1E4B46" />
-              </View>
-              <View style={styles.contactDetails}>
-                <Text style={styles.contactName}>{contact.name}</Text>
-                <Text style={styles.contactRelation}>{contact.relation}</Text>
-                <Text style={styles.contactPhone}>{contact.phone}</Text>
-              </View>
-            </View>
-            <View style={styles.contactActions}>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => handleEditContact(contact)}
-              >
-                <Icon name="pencil" size={20} color="#1E4B46" />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => handleDeleteContact(contact.id)}
-              >
-                <Icon name="delete" size={20} color="#e74c3c" />
-              </TouchableOpacity>
-            </View>
+        {contacts.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Icon name="account-alert-outline" size={64} color="#CCC" />
+            <Text style={styles.emptyStateText}>No emergency contacts</Text>
+            <Text style={styles.emptyStateSubtext}>Tap + to add a contact</Text>
           </View>
-        ))}
+        ) : (
+          contacts.map((contact) => (
+            <View key={contact.id} style={styles.contactCard}>
+              <View style={styles.contactInfo}>
+                <View style={[styles.iconCircle, contact.isPrimary && styles.primaryIconCircle]}>
+                  <Icon name="account" size={24} color={contact.isPrimary ? '#fff' : '#1E4B46'} />
+                </View>
+                <View style={styles.contactDetails}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.contactName}>{contact.name}</Text>
+                    {contact.isPrimary && (
+                      <View style={styles.primaryBadge}>
+                        <Text style={styles.primaryBadgeText}>Primary</Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text style={styles.contactRelation}>{contact.relation}</Text>
+                  <TouchableOpacity onPress={() => handleCallContact(contact.phone)}>
+                    <Text style={styles.contactPhone}>{contact.phone}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.contactActions}>
+                <TouchableOpacity
+                  style={styles.callButton}
+                  onPress={() => handleCallContact(contact.phone)}
+                >
+                  <Icon name="phone" size={20} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.actionButton}
+                  onPress={() => handleEditContact(contact)}
+                >
+                  <Icon name="pencil" size={20} color="#1E4B46" />
+                </TouchableOpacity>
+                {!contact.isPrimary && (
+                  <TouchableOpacity
+                    style={styles.actionButton}
+                    onPress={() => handleDeleteContact(contact.id)}
+                  >
+                    <Icon name="delete" size={20} color="#e74c3c" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          ))
+        )}
+
+        <View style={styles.bottomSpacing} />
       </ScrollView>
 
       <Modal
@@ -130,27 +247,36 @@ const EmergencyContacts = ({ navigation }) => {
               {editingContact ? 'Edit Contact' : 'Add New Contact'}
             </Text>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Full Name"
-              value={formData.name}
-              onChangeText={(text) => setFormData({ ...formData, name: text })}
-            />
+            <View style={styles.inputContainer}>
+              <Icon name="account-outline" size={20} color="#666" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Full Name"
+                value={formData.name}
+                onChangeText={(text) => setFormData({ ...formData, name: text })}
+              />
+            </View>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Relation"
-              value={formData.relation}
-              onChangeText={(text) => setFormData({ ...formData, relation: text })}
-            />
+            <View style={styles.inputContainer}>
+              <Icon name="human-male-female" size={20} color="#666" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Relation (e.g., Father, Mother, Spouse)"
+                value={formData.relation}
+                onChangeText={(text) => setFormData({ ...formData, relation: text })}
+              />
+            </View>
 
-            <TextInput
-              style={styles.input}
-              placeholder="Phone Number"
-              value={formData.phone}
-              onChangeText={(text) => setFormData({ ...formData, phone: text })}
-              keyboardType="phone-pad"
-            />
+            <View style={styles.inputContainer}>
+              <Icon name="phone-outline" size={20} color="#666" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Phone Number (e.g., +91 98765 43210)"
+                value={formData.phone}
+                onChangeText={(text) => setFormData({ ...formData, phone: text })}
+                keyboardType="phone-pad"
+              />
+            </View>
 
             <View style={styles.modalActions}>
               <TouchableOpacity
@@ -163,7 +289,9 @@ const EmergencyContacts = ({ navigation }) => {
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={handleSaveContact}
               >
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={styles.saveButtonText}>
+                  {editingContact ? 'Update' : 'Save'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -177,6 +305,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
   header: {
     flexDirection: 'row',
@@ -199,11 +337,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
   },
-  description: {
-    fontSize: 14,
-    color: '#1E4B46',
+  infoCard: {
+    flexDirection: 'row',
+    backgroundColor: '#E8F5F3',
+    borderRadius: 12,
+    padding: 15,
     marginBottom: 20,
+    alignItems: 'flex-start',
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1E4B46',
+    marginLeft: 10,
     lineHeight: 20,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#999',
+    marginTop: 16,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#CCC',
+    marginTop: 8,
   },
   contactCard: {
     backgroundColor: '#fff',
@@ -213,6 +376,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   contactInfo: {
     flexDirection: 'row',
@@ -227,30 +395,63 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 15,
   },
+  primaryIconCircle: {
+    backgroundColor: '#1E4B46',
+  },
   contactDetails: {
     flex: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
   },
   contactName: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1E4B46',
-    marginBottom: 4,
+  },
+  primaryBadge: {
+    backgroundColor: '#FFA000',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginLeft: 8,
+  },
+  primaryBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#fff',
   },
   contactRelation: {
     fontSize: 14,
-    color: '#1E4B46',
+    color: '#666',
     marginBottom: 4,
   },
   contactPhone: {
     fontSize: 14,
     color: '#1E4B46',
+    fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   contactActions: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
+    marginLeft: 10,
+  },
+  callButton: {
+    backgroundColor: '#2ecc71',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   actionButton: {
     padding: 8,
+  },
+  bottomSpacing: {
+    height: 20,
   },
   modalOverlay: {
     flex: 1,
@@ -271,14 +472,23 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
-  input: {
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#f5f5f5',
     borderRadius: 10,
-    padding: 15,
-    fontSize: 16,
     marginBottom: 15,
     borderWidth: 1,
     borderColor: '#e0e0e0',
+    paddingHorizontal: 15,
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    padding: 15,
+    fontSize: 16,
   },
   modalActions: {
     flexDirection: 'row',

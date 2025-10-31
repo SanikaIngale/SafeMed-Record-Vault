@@ -1,19 +1,155 @@
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
-import { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
-  Image,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 import BottomNavigation from '../components/BottomNavigation';
 
 const ProfileScreen = ({ navigation }) => {
   const [activeNav, setActiveNav] = useState('Profile');
+  const [userData, setUserData] = useState({
+    name: 'Loading...',
+    initials: 'NA',
+    patient_id: '-'
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      
+      const apiUrl = Platform.OS === 'android' ? 'http://10.185.77.5:5000' : 'http://localhost:5000';
+      
+      // Try to get email from AsyncStorage
+      let userEmail = await AsyncStorage.getItem('userEmail');
+      
+      if (!userEmail) {
+        // Fallback: try patient_id
+        const patientId = await AsyncStorage.getItem('patient_id');
+        
+        if (!patientId) {
+          console.error('No user data found in storage');
+          setLoading(false);
+          return;
+        }
+        
+        // Fetch directly using patient_id
+        const patientResponse = await fetch(`${apiUrl}/api/patients/${patientId}`);
+        const patientData = await patientResponse.json();
+        
+        if (patientData && patientData.success !== false) {
+          setUserData({
+            name: patientData.name || 'User',
+            initials: getInitials(patientData.name),
+            patient_id: patientData.patient_id || '-',
+            email: patientData.contact_info?.email || '-',
+            phone: patientData.contact_info?.phone || '-',
+            dob: patientData.dob || null,
+            gender: patientData.gender || '-',
+            blood_group: patientData.blood_group || '-'
+          });
+        }
+        
+        setLoading(false);
+        return;
+      }
+
+      // Fetch using email (two-step process)
+      const userResponse = await fetch(`${apiUrl}/api/user/email/${userEmail}`);
+      const userInfo = await userResponse.json();
+      
+      if (!userInfo.success || !userInfo.patient_id) {
+        console.error('User not found');
+        setLoading(false);
+        return;
+      }
+
+      const patientId = userInfo.patient_id;
+      
+      // Get full patient data
+      const patientResponse = await fetch(`${apiUrl}/api/patients/${patientId}`);
+      const patientData = await patientResponse.json();
+      
+      if (patientData && patientData.success !== false) {
+        setUserData({
+          name: patientData.name || 'User',
+          initials: getInitials(patientData.name),
+          patient_id: patientData.patient_id || '-',
+          email: patientData.contact_info?.email || userEmail,
+          phone: patientData.contact_info?.phone || '-',
+          dob: patientData.dob || null,
+          gender: patientData.gender || '-',
+          blood_group: patientData.blood_group || '-'
+        });
+      }
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setLoading(false);
+    }
+  };
+
+  const getInitials = (name) => {
+    if (!name) return 'NA';
+    const names = name.split(' ');
+    return names.length > 1 
+      ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+      : names[0][0].toUpperCase();
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // Clear AsyncStorage
+              await AsyncStorage.multiRemove([
+                'userToken',
+                'userData',
+                'userEmail',
+                'patient_id'
+              ]);
+              
+              console.log('✅ User logged out successfully');
+              
+              // Navigate to SignIn
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'SignIn' }],
+              });
+            } catch (error) {
+              console.error('Error during logout:', error);
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleNavigation = (navName) => {
+    setActiveNav(navName);
+  };
 
   const menuItems = [
     {
@@ -64,29 +200,6 @@ const ProfileScreen = ({ navigation }) => {
     },
   ];
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', onPress: () => {} },
-        {
-          text: 'Logout',
-          onPress: () => {
-            navigation.reset({
-              index: 0,
-              routes: [{ name: 'SignIn' }],
-            });
-          },
-        },
-      ]
-    );
-  };
-
-  const handleNavigation = (navName) => {
-    setActiveNav(navName);
-  };
-
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -100,45 +213,99 @@ const ProfileScreen = ({ navigation }) => {
         <View style={styles.headerSpacer} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <View style={styles.profileHeader}>
-          <View style={styles.profileImage}>
-            <Text style={styles.profileInitial}>RS</Text>
-          </View>
-          <Text style={styles.profileName}>Ruchita Sharma</Text>
-          <TouchableOpacity style={styles.editProfileButton}>
-            <Text style={styles.editProfileText}>Edit Profile</Text>
-          </TouchableOpacity>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1E4B46" />
+          <Text style={styles.loadingText}>Loading profile...</Text>
         </View>
+      ) : (
+        <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={styles.profileHeader}>
+            <View style={styles.profileImage}>
+              <Text style={styles.profileInitial}>{userData.initials}</Text>
+            </View>
+            <Text style={styles.profileName}>{userData.name}</Text>
+            <View style={styles.profileDetails}>
+              <View style={styles.detailRow}>
+                <Icon name="email-outline" size={16} color="#666" />
+                <Text style={styles.detailText}>{userData.email}</Text>
+              </View>
+              {userData.phone && userData.phone !== '-' && (
+                <View style={styles.detailRow}>
+                  <Icon name="phone-outline" size={16} color="#666" />
+                  <Text style={styles.detailText}>{userData.phone}</Text>
+                </View>
+              )}
+              <View style={styles.detailRow}>
+                <Icon name="card-account-details-outline" size={16} color="#666" />
+                <Text style={styles.detailText}>ID: {userData.patient_id}</Text>
+              </View>
+            </View>
+            <TouchableOpacity 
+              style={styles.editProfileButton}
+              onPress={() => navigation.navigate('EditPersonalInfo')}
+            >
+              <Text style={styles.editProfileText}>Edit Profile</Text>
+            </TouchableOpacity>
+          </View>
 
-        {menuItems.map((section, index) => (
-          <View key={index} style={styles.section}>
-            <Text style={styles.sectionTitle}>{section.section}</Text>
-            <View style={styles.menuCard}>
-              {section.items.map((item, itemIndex) => (
-                <TouchableOpacity
-                  key={item.id}
-                  style={[
-                    styles.menuItem,
-                    itemIndex !== section.items.length - 1 && styles.menuItemBorder,
-                  ]}
-                  onPress={() => navigation.navigate(item.screen)}
-                >
-                  <Icon name={item.icon} size={24} color="#333" />
-                  <Text style={styles.menuItemText}>{item.title}</Text>
-                  <Icon name="chevron-right" size={24} color="#999" />
-                </TouchableOpacity>
-              ))}
+          {/* Quick Stats Card */}
+          <View style={styles.statsCard}>
+            <View style={styles.statItem}>
+              <Icon name="water" size={24} color="#1E4B46" />
+              <Text style={styles.statLabel}>Blood Group</Text>
+              <Text style={styles.statValue}>{userData.blood_group}</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Icon name="gender-male-female" size={24} color="#1E4B46" />
+              <Text style={styles.statLabel}>Gender</Text>
+              <Text style={styles.statValue}>{userData.gender}</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Icon name="calendar" size={24} color="#1E4B46" />
+              <Text style={styles.statLabel}>DOB</Text>
+              <Text style={styles.statValue}>
+                {userData.dob ? new Date(userData.dob).toLocaleDateString('en-GB', { 
+                  day: '2-digit', 
+                  month: 'short', 
+                  year: 'numeric' 
+                }) : '-'}
+              </Text>
             </View>
           </View>
-        ))}
 
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+          {menuItems.map((section, index) => (
+            <View key={index} style={styles.section}>
+              <Text style={styles.sectionTitle}>{section.section}</Text>
+              <View style={styles.menuCard}>
+                {section.items.map((item, itemIndex) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[
+                      styles.menuItem,
+                      itemIndex !== section.items.length - 1 && styles.menuItemBorder,
+                    ]}
+                    onPress={() => navigation.navigate(item.screen)}
+                  >
+                    <Icon name={item.icon} size={24} color="#333" />
+                    <Text style={styles.menuItemText}>{item.title}</Text>
+                    <Icon name="chevron-right" size={24} color="#999" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          ))}
 
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Icon name="logout" size={20} color="#fff" style={styles.logoutIcon} />
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+
+          <View style={styles.bottomSpacing} />
+        </ScrollView>
+      )}
 
       <BottomNavigation 
         activeNav={activeNav} 
@@ -153,6 +320,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 80,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
   header: {
     flexDirection: 'row',
@@ -193,6 +371,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 3,
     borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   profileInitial: {
     fontSize: 40,
@@ -203,7 +386,21 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#1E4B46',
-    marginBottom: 10,
+    marginBottom: 12,
+  },
+  profileDetails: {
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  detailText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: '#666',
   },
   editProfileButton: {
     paddingVertical: 8,
@@ -213,6 +410,39 @@ const styles = StyleSheet.create({
     color: '#1E4B46',
     fontSize: 14,
     fontWeight: '600',
+  },
+  statsCard: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 15,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: '#e0e0e0',
+    marginHorizontal: 10,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E4B46',
   },
   section: {
     marginTop: 20,
@@ -250,18 +480,23 @@ const styles = StyleSheet.create({
     color: '#333',
   },
   logoutButton: {
+    flexDirection: 'row',
     marginHorizontal: 20,
     marginTop: 30,
     marginBottom: 20,
-    backgroundColor: '#1E4B46',
+    backgroundColor: '#D32F2F',
     borderRadius: 30,
     paddingVertical: 16,
     alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  logoutIcon: {
+    marginRight: 8,
   },
   logoutText: {
     color: '#fff',

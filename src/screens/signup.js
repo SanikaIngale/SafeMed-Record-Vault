@@ -1,6 +1,8 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { API_ENDPOINTS, apiCall } from '../config/api'; // ADD THIS IMPORT
 
 export default function SignUpScreen({ navigation, route }) {
   const [name, setName] = useState('');
@@ -9,17 +11,18 @@ export default function SignUpScreen({ navigation, route }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const { userCredentials } = route.params || {};
 
   useEffect(() => {
-    if (userCredentials && userCredentials.email) {
-      setEmail(userCredentials.email);
-      setPassword(userCredentials.password);
+    if (userCredentials) {
+      if (userCredentials.email) setEmail(userCredentials.email);
+      if (userCredentials.password) setPassword(userCredentials.password);
     }
   }, [userCredentials]);
 
-  const handleSignUp = () => {
+  const handleSignUp = async () => {
     if (!name || !email || !mobileNumber || !password) {
       Alert.alert('Missing Information', 'Please fill in all fields');
       return;
@@ -47,16 +50,67 @@ export default function SignUpScreen({ navigation, route }) {
       return;
     }
 
-    Alert.alert(
-      'Success!',
-      `Account created for ${name}. Please verify your mobile number.`,
-      [
-        {
-          text: 'Continue',
-          onPress: () => navigation.navigate('OTP', { mobileNumber, name, email }),
-        },
-      ]
-    );
+    setLoading(true);
+
+    try {
+      // UPDATED: Use API config
+      const { response, data } = await apiCall(API_ENDPOINTS.SIGNUP, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: name,
+          email: email.toLowerCase(),
+          mobileNumber: mobileNumber,
+          password: password,
+        }),
+      });
+
+      if (response.ok && data.success) {
+        // Account created successfully
+        // Store token and user data
+        await AsyncStorage.setItem('userToken', data.token);
+        await AsyncStorage.setItem('userData', JSON.stringify(data.user));
+
+        Alert.alert(
+          'Success!',
+          `Account created for ${name}. Please verify your mobile number.`,
+          [
+            {
+              text: 'Continue',
+              onPress: () => navigation.navigate('OTP', { 
+                mobileNumber, 
+                name, 
+                email,
+                userId: data.user.id,
+                token: data.token
+              }),
+            },
+          ]
+        );
+      } else if (response.status === 400 && data.message.includes('already exists')) {
+        // User already exists
+        Alert.alert(
+          'Account Exists',
+          'An account with this email already exists. Please sign in.',
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+            },
+            {
+              text: 'Sign In',
+              onPress: () => navigation.navigate('SignIn'),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Sign Up Failed', data.message || 'Unable to create account. Please try again.');
+      }
+    } catch (error) {
+      console.error('Sign up error:', error);
+      Alert.alert('Connection Error', 'Unable to connect to server. Please check your network connection and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleTermsPress = () => {
@@ -70,7 +124,7 @@ export default function SignUpScreen({ navigation, route }) {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('SignIn')}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="chevron-left" size={28} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Sign Up</Text>
@@ -87,6 +141,7 @@ export default function SignUpScreen({ navigation, route }) {
             value={name}
             onChangeText={setName}
             autoCapitalize="words"
+            editable={!loading}
           />
         </View>
 
@@ -101,6 +156,7 @@ export default function SignUpScreen({ navigation, route }) {
             keyboardType="email-address"
             autoCapitalize="none"
             autoComplete="email"
+            editable={!loading}
           />
         </View>
 
@@ -114,6 +170,7 @@ export default function SignUpScreen({ navigation, route }) {
             onChangeText={setMobileNumber}
             keyboardType="phone-pad"
             maxLength={10}
+            editable={!loading}
           />
         </View>
 
@@ -127,10 +184,12 @@ export default function SignUpScreen({ navigation, route }) {
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
             autoCapitalize="none"
+            editable={!loading}
           />
           <TouchableOpacity
             onPress={() => setShowPassword(!showPassword)}
             style={styles.eyeIcon}
+            disabled={loading}
           >
             <MaterialCommunityIcons
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}
@@ -150,6 +209,7 @@ export default function SignUpScreen({ navigation, route }) {
           <TouchableOpacity
             style={styles.checkbox}
             onPress={() => setAgreedToTerms(!agreedToTerms)}
+            disabled={loading}
           >
             <View style={[styles.checkboxBox, agreedToTerms && styles.checkboxBoxChecked]}>
               {agreedToTerms && (
@@ -159,27 +219,35 @@ export default function SignUpScreen({ navigation, route }) {
           </TouchableOpacity>
           <View style={styles.termsTextContainer}>
             <Text style={styles.termsText}>I agree to the healthcare </Text>
-            <TouchableOpacity onPress={handleTermsPress}>
+            <TouchableOpacity onPress={handleTermsPress} disabled={loading}>
               <Text style={styles.termsLink}>Terms of Service</Text>
             </TouchableOpacity>
             <Text style={styles.termsText}> and </Text>
-            <TouchableOpacity onPress={handlePrivacyPress}>
+            <TouchableOpacity onPress={handlePrivacyPress} disabled={loading}>
               <Text style={styles.termsLink}>Privacy Policy</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <TouchableOpacity
-          style={styles.signUpButton}
+          style={[styles.signUpButton, loading && styles.signUpButtonDisabled]}
           onPress={handleSignUp}
           activeOpacity={0.8}
+          disabled={loading}
         >
-          <Text style={styles.signUpButtonText}>Sign Up</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.signUpButtonText}>Sign Up</Text>
+          )}
         </TouchableOpacity>
 
         <View style={styles.signInLinkContainer}>
           <Text style={styles.signInText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('SignIn')}>
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('SignIn')}
+            disabled={loading}
+          >
             <Text style={styles.signInLink}>Sign In</Text>
           </TouchableOpacity>
         </View>
@@ -301,6 +369,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 3.84,
     elevation: 5,
+  },
+  signUpButtonDisabled: {
+    backgroundColor: '#9FB8B5',
   },
   signUpButtonText: {
     color: '#fff',

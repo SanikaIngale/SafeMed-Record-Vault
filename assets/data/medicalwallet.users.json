@@ -1,0 +1,130 @@
+[{
+  "_id": {
+    "$oid": "69039f09a72c020de756028a"
+  },
+  "patient_id": "P0001",
+  "name": "Darshit Banik",
+  "email": "zara36@hotmail.com",
+  "mobileNumber": "+91-7750162428",
+  "password": "$2b$10$XH8vGxY4rKZp.3qPJxvHxeYqWZJKLMNOPQRSTUVWXYZabcdefghijk",
+  "isVerified": false,
+  "requiresPasswordChange": true,
+  "createdAt": "2025-10-30T00:00:00.000Z"
+},
+{
+  "_id": {
+    "$oid": "69039f09a72c020de756028b"
+  },
+  "patient_id": "P0002",
+  "name": "Ivana Dyal",
+  "email": "dhanukkaul@gmail.com",
+  "mobileNumber": "+91-8799489910",
+  "password": "$2b$10$YI9wHyZ5sLaQr4tRKywIyfZrXaKJLMNOPQRSTUVWXYZabcdefghijk",
+  "isVerified": false,
+  "requiresPasswordChange": true,
+  "createdAt": "2025-10-30T00:00:00.000Z"
+},
+{
+  "_id": {
+    "$oid": "69039f09a72c020de756028c"
+  },
+  "patient_id": "P0003",
+  "name": "Siya Garde",
+  "email": "groveranahi@hayer-kamdar.info",
+  "mobileNumber": "+91-8284123505",
+  "password": "$2b$10$ZJ0xIzA6tMbRs5uSLzxJzgarYbLKLMNOPQRSTUVWXYZabcdefghijk",
+  "isVerified": false,
+  "requiresPasswordChange": true,
+  "createdAt": "2025-10-30T00:00:00.000Z"
+},
+{
+  "_id": {
+    "$oid": "69039f09a72c020de756028d"
+  },
+  "patient_id": "P0004",
+  "name": "Jhanvi Ghosh",
+  "email": "madhup07@gala.com",
+  "mobileNumber": "+91-8132905955",
+  "password": "$2b$10$AK1yJzB7uNcSt6vTMzyKzhbsZcMKLMNOPQRSTUVWXYZabcdefghijk",
+  "isVerified": false,
+  "requiresPasswordChange": true,
+  "createdAt": "2025-10-30T00:00:00.000Z"
+},
+{
+  "_id": {
+    "$oid": "69039f09a72c020de756028e"
+  },
+  "patient_id": "P0005",
+  "name": "Ritvik Borra",
+  "email": "yuvaangrewal@hotmail.com",
+  "mobileNumber": "+91-9385089774",
+  "password": "$2b$10$BL2zKzC8vOdTu7wUNzzLzictAdNKLMNOPQRSTUVWXYZabcdefghijk",
+  "isVerified": false,
+  "requiresPasswordChange": true,
+  "createdAt": "2025-10-30T00:00:00.000Z"
+},
+{
+  "_id": {
+    "$oid": "69039f09a72c020de756028f"
+  },
+  "patient_id": "P0006",
+  "name": "Mehul Sastry",
+  "email": "dhanuksahni@bumb.biz",
+  "mobileNumber": "+91-7203887836",
+  "password": "$2b$10$CM3zLzD9wPeUv8xVOzzMzjduBeOKLMNOPQRSTUVWXYZabcdefghijk",
+  "isVerified": false,
+  "requiresPasswordChange": true,
+  "createdAt": "2025-10-30T00:00:00.000Z"
+},
+{
+  "_id": {
+    "$oid": "69039f09a72c020de7560290"
+  },
+  "patient_id": "P0007",
+  "name": "Ranbir Swamy",
+  "email": "trishajoshi@sachar.com",
+  "mobileNumber": "+91-8075894882",
+  "password": "$2b$10$DN4zMzE0xQfVw9yWPzzNzkevCfPKLMNOPQRSTUVWXYZabcdefghijk",
+  "isVerified": false,
+  "requiresPasswordChange": true,
+  "createdAt": "2025-10-30T00:00:00.000Z"
+},
+{
+  "_id": {
+    "$oid": "69039f09a72c020de7560291"
+  },
+  "patient_id": "P0008",
+  "name": "Vihaan Baral",
+  "email": "anika84@ratta.com",
+  "mobileNumber": "+91-7581946693",
+  "password": "$2b$10$EO5zNzF1yRgWx0zXQzzOzlfwDgQKLMNOPQRSTUVWXYZabcdefghijk",
+  "isVerified": false,
+  "requiresPasswordChange": true,
+  "createdAt": "2025-10-30T00:00:00.000Z"
+},
+{
+  "_id": {
+    "$oid": "69039f09a72c020de7560292"
+  },
+  "patient_id": "P0009",
+  "name": "Keya Butala",
+  "email": "kwali@gmail.com",
+  "mobileNumber": "+91-7491473451",
+  "password": "$2b$10$FP6zOzG2zShXy1zYRzzPzmgxEhRKLMNOPQRSTUVWXYZabcdefghijk",
+  "isVerified": false,
+  "requiresPasswordChange": true,
+  "createdAt": "2025-10-30T00:00:00.000Z"
+},
+{
+  "_id": {
+    "$oid": "69039f09a72c020de7560293"
+  },
+  "patient_id": "P0010",
+  "name": "Jivin Borra",
+  "email": "emiredwin@gmail.com",
+  "mobileNumber": "+91-9737992380",
+  "password": "$2b$10$GQ7zPzH3zTiYz2zZSzzQznhyFiSKLMNOPQRSTUVWXYZabcdefghijk",
+  "isVerified": false,
+  "requiresPasswordChange": true,
+  "createdAt": "2025-10-30T00:00:00.000Z"
+}]

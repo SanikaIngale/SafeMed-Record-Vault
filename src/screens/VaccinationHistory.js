@@ -1,37 +1,27 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-  Modal,
-  TextInput,
-  Alert,
-} from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+const API_BASE_URL = 'http://10.185.77.5:5000/api';
 
 const VaccinationHistory = ({ navigation }) => {
-  const [vaccinations, setVaccinations] = useState([
-    {
-      id: 1,
-      name: 'COVID-19 (Pfizer)',
-      date: '15/03/2024',
-      location: 'City Hospital',
-      doseNumber: 'Booster',
-      nextDue: 'N/A',
-    },
-    {
-      id: 2,
-      name: 'Influenza',
-      date: '10/10/2023',
-      location: 'Community Health Center',
-      doseNumber: 'Annual',
-      nextDue: '10/10/2024',
-    },
-  ]);
-
+  const [vaccinations, setVaccinations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [patientId, setPatientId] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [editingVac, setEditingVac] = useState(null);
   const [formData, setFormData] = useState({
@@ -41,6 +31,57 @@ const VaccinationHistory = ({ navigation }) => {
     doseNumber: '',
     nextDue: '',
   });
+
+  useEffect(() => {
+    loadVaccinations();
+  }, []);
+
+  const loadVaccinations = async () => {
+    try {
+      setLoading(true);
+
+      // Get user email from AsyncStorage
+      const email = await AsyncStorage.getItem('userEmail');
+      
+      if (!email) {
+        Alert.alert('Error', 'Please login again');
+        navigation.replace('SignIn');
+        return;
+      }
+
+      // Step 1: Get patient_id from users table
+      const userResponse = await fetch(`${API_BASE_URL}/user/email/${email}`);
+      const userData = await userResponse.json();
+
+      if (!userData.success) {
+        throw new Error('Failed to fetch user data');
+      }
+
+      const patId = userData.patient_id;
+      setPatientId(patId);
+
+      // Step 2: Get vaccinations from patients table
+      const vacsResponse = await fetch(`${API_BASE_URL}/vaccinations/${patId}`);
+      const vacsData = await vacsResponse.json();
+
+      if (vacsData.success) {
+        setVaccinations(vacsData.vaccinations || []);
+        console.log('✅ Vaccinations loaded:', vacsData.vaccinations?.length || 0);
+      }
+
+    } catch (error) {
+      console.error('❌ Error loading vaccinations:', error);
+      Alert.alert('Error', 'Failed to load vaccinations. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadVaccinations();
+  };
 
   const handleAddVaccination = () => {
     setEditingVac(null);
@@ -65,35 +106,105 @@ const VaccinationHistory = ({ navigation }) => {
       { text: 'Cancel' },
       {
         text: 'Delete',
-        onPress: () => setVaccinations(vaccinations.filter(vac => vac.id !== id)),
+        onPress: async () => {
+          try {
+            const response = await fetch(`${API_BASE_URL}/vaccinations/${patientId}/${id}`, {
+              method: 'DELETE',
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              setVaccinations(vaccinations.filter(vac => vac.id !== id));
+              Alert.alert('Success', 'Vaccination deleted successfully');
+            } else {
+              throw new Error(data.message);
+            }
+          } catch (error) {
+            console.error('❌ Error deleting vaccination:', error);
+            Alert.alert('Error', 'Failed to delete vaccination');
+          }
+        },
       },
     ]);
   };
 
-  const handleSaveVaccination = () => {
+  const handleSaveVaccination = async () => {
     if (!formData.name || !formData.date) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
-    if (editingVac) {
-      setVaccinations(vaccinations.map(vac =>
-        vac.id === editingVac.id ? { ...editingVac, ...formData } : vac
-      ));
-    } else {
-      setVaccinations([...vaccinations, { id: Date.now(), ...formData }]);
+    try {
+      if (editingVac) {
+        // Update existing vaccination
+        const response = await fetch(`${API_BASE_URL}/vaccinations/${patientId}/${editingVac.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          setVaccinations(vaccinations.map(vac =>
+            vac.id === editingVac.id ? { ...editingVac, ...formData } : vac
+          ));
+          Alert.alert('Success', 'Vaccination updated successfully');
+        } else {
+          throw new Error(data.message);
+        }
+      } else {
+        // Add new vaccination
+        const response = await fetch(`${API_BASE_URL}/vaccinations/${patientId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          setVaccinations([...vaccinations, data.vaccination]);
+          Alert.alert('Success', 'Vaccination added successfully');
+        } else {
+          throw new Error(data.message);
+        }
+      }
+      setModalVisible(false);
+    } catch (error) {
+      console.error('❌ Error saving vaccination:', error);
+      Alert.alert('Error', 'Failed to save vaccination');
     }
-    setModalVisible(false);
   };
 
   const isUpcoming = (date) => {
-    if (date === 'N/A') return false;
-    const nextDue = new Date(date.split('/').reverse().join('-'));
-    const today = new Date();
-    const diffTime = nextDue - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 && diffDays <= 90;
+    if (date === 'N/A' || !date) return false;
+    try {
+      const nextDue = new Date(date.split('/').reverse().join('-'));
+      const today = new Date();
+      const diffTime = nextDue - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays > 0 && diffDays <= 90;
+    } catch (error) {
+      return false;
+    }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1E4B46" />
+          <Text style={styles.loadingText}>Loading vaccinations...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -107,7 +218,13 @@ const VaccinationHistory = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1E4B46']} />
+        }
+      >
         <View style={styles.summaryCard}>
           <View style={styles.summaryItem}>
             <Text style={styles.summaryNumber}>{vaccinations.length}</Text>
@@ -124,49 +241,57 @@ const VaccinationHistory = ({ navigation }) => {
 
         <Text style={styles.sectionTitle}>Vaccination Records</Text>
 
-        {vaccinations.map((vaccination) => (
-          <View key={vaccination.id} style={styles.vaccinationCard}>
-            <View style={styles.cardHeader}>
-              <View style={styles.vaccineIcon}>
-                <Icon name="needle" size={24} color="#fff" />
-              </View>
-              <View style={styles.vaccinationInfo}>
-                <Text style={styles.vaccinationName}>{vaccination.name}</Text>
-                <View style={styles.dateRow}>
-                  <Icon name="calendar" size={14} color="#666" />
-                  <Text style={styles.date}>{vaccination.date}</Text>
-                </View>
-              </View>
-              <TouchableOpacity onPress={() => handleDeleteVaccination(vaccination.id)}>
-                <Icon name="delete" size={20} color="#e74c3c" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.detailsContainer}>
-              <View style={styles.detailRow}>
-                <Icon name="hospital-building" size={16} color="#666" />
-                <Text style={styles.detailText}>{vaccination.location}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Icon name="counter" size={16} color="#666" />
-                <Text style={styles.detailText}>Dose: {vaccination.doseNumber}</Text>
-              </View>
-              {vaccination.nextDue !== 'N/A' && (
-                <View style={styles.nextDueContainer}>
-                  <Icon name="clock-outline" size={16} color="#1E4B46" />
-                  <Text style={styles.nextDueText}>
-                    Next due: {vaccination.nextDue}
-                  </Text>
-                  {isUpcoming(vaccination.nextDue) && (
-                    <View style={styles.upcomingBadge}>
-                      <Text style={styles.upcomingText}>Upcoming</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
+        {vaccinations.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Icon name="needle" size={64} color="#ccc" />
+            <Text style={styles.emptyText}>No vaccination records yet</Text>
+            <Text style={styles.emptySubtext}>Tap the + button to add your first vaccination</Text>
           </View>
-        ))}
+        ) : (
+          vaccinations.map((vaccination) => (
+            <View key={vaccination.id} style={styles.vaccinationCard}>
+              <View style={styles.cardHeader}>
+                <View style={styles.vaccineIcon}>
+                  <Icon name="needle" size={24} color="#fff" />
+                </View>
+                <View style={styles.vaccinationInfo}>
+                  <Text style={styles.vaccinationName}>{vaccination.name}</Text>
+                  <View style={styles.dateRow}>
+                    <Icon name="calendar" size={14} color="#666" />
+                    <Text style={styles.date}>{vaccination.date}</Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => handleDeleteVaccination(vaccination.id)}>
+                  <Icon name="delete" size={20} color="#e74c3c" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.detailsContainer}>
+                <View style={styles.detailRow}>
+                  <Icon name="hospital-building" size={16} color="#666" />
+                  <Text style={styles.detailText}>{vaccination.location}</Text>
+                </View>
+                <View style={styles.detailRow}>
+                  <Icon name="counter" size={16} color="#666" />
+                  <Text style={styles.detailText}>Dose: {vaccination.doseNumber}</Text>
+                </View>
+                {vaccination.nextDue && vaccination.nextDue !== 'N/A' && (
+                  <View style={styles.nextDueContainer}>
+                    <Icon name="clock-outline" size={16} color="#1E4B46" />
+                    <Text style={styles.nextDueText}>
+                      Next due: {vaccination.nextDue}
+                    </Text>
+                    {isUpcoming(vaccination.nextDue) && (
+                      <View style={styles.upcomingBadge}>
+                        <Text style={styles.upcomingText}>Upcoming</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            </View>
+          ))
+        )}
       </ScrollView>
 
       <Modal
@@ -184,14 +309,14 @@ const VaccinationHistory = ({ navigation }) => {
 
               <TextInput
                 style={styles.input}
-                placeholder="Vaccine Name"
+                placeholder="Vaccine Name *"
                 value={formData.name}
                 onChangeText={(text) => setFormData({ ...formData, name: text })}
               />
 
               <TextInput
                 style={styles.input}
-                placeholder="Date Administered (DD/MM/YYYY)"
+                placeholder="Date Administered (DD/MM/YYYY) *"
                 value={formData.date}
                 onChangeText={(text) => setFormData({ ...formData, date: text })}
               />
@@ -243,6 +368,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#1E4B46',
   },
   header: {
     flexDirection: 'row',
@@ -301,6 +436,23 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1E4B46',
     marginBottom: 15,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#666',
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
   },
   vaccinationCard: {
     backgroundColor: '#fff',

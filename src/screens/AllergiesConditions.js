@@ -1,48 +1,98 @@
-import React, { useState } from 'react';
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-  Modal,
-  TextInput,
+  ActivityIndicator,
   Alert,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { MaterialCommunityIcons as Icon, Ionicons } from '@expo/vector-icons';
 
 const AllergiesConditions = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('allergies');
   const [modalVisible, setModalVisible] = useState(false);
-  const [itemText, setItemText] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const [allergies, setAllergies] = useState([
-    { id: 1, name: 'Peanuts', severity: 'Severe', notes: 'Anaphylactic reaction' },
-    { id: 2, name: 'Penicillin', severity: 'Moderate', notes: 'Skin rash' },
-    { id: 3, name: 'Dust mites', severity: 'Mild', notes: 'Sneezing, runny nose' },
-  ]);
-
-  const [conditions, setConditions] = useState([
-    { id: 1, name: 'Asthma', diagnosed: '2018', status: 'Controlled' },
-    { id: 2, name: 'Hypertension', diagnosed: '2020', status: 'Under treatment' },
-  ]);
+  const [allergies, setAllergies] = useState([]);
+  const [conditions, setConditions] = useState([]);
 
   const [editingItem, setEditingItem] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     severity: '',
-    notes: '',
+    effect: '',
     diagnosed: '',
     status: '',
   });
+
+  useEffect(() => {
+    fetchPatientData();
+  }, []);
+
+  const fetchPatientData = async () => {
+    try {
+      setLoading(true);
+      
+      const apiUrl = Platform.OS === 'android' ? 'http://10.185.77.5:5000' : 'http://localhost:5000';
+      
+      // Get patient_id from AsyncStorage
+      const patientId = await AsyncStorage.getItem('patient_id');
+      
+      if (!patientId) {
+        Alert.alert('Error', 'Patient ID not found. Please login again.');
+        setLoading(false);
+        return;
+      }
+
+      // Fetch patient data
+      const response = await fetch(`${apiUrl}/api/patients/${patientId}`);
+      const patientData = await response.json();
+
+      if (patientData && patientData.success !== false) {
+        // Set allergies
+        if (patientData.allergies && Array.isArray(patientData.allergies)) {
+          const formattedAllergies = patientData.allergies.map((allergy, index) => ({
+            id: index + 1,
+            name: allergy.name,
+            severity: allergy.severity,
+            notes: allergy.effect || 'No notes'
+          }));
+          setAllergies(formattedAllergies);
+        }
+
+        // Set conditions
+        if (patientData.conditions && Array.isArray(patientData.conditions)) {
+          const formattedConditions = patientData.conditions.map((condition, index) => ({
+            id: index + 1,
+            name: condition.name,
+            diagnosed: condition.diagnosed_year?.toString() || 'N/A',
+            status: condition.status || 'Unknown'
+          }));
+          setConditions(formattedConditions);
+        }
+      }
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching patient data:', error);
+      Alert.alert('Error', 'Failed to load data. Please try again.');
+      setLoading(false);
+    }
+  };
 
   const handleAddItem = () => {
     setEditingItem(null);
     setFormData({
       name: '',
       severity: '',
-      notes: '',
+      effect: '',
       diagnosed: '',
       status: '',
     });
@@ -55,7 +105,7 @@ const AllergiesConditions = ({ navigation }) => {
       setFormData({
         name: item.name,
         severity: item.severity,
-        notes: item.notes,
+        effect: item.notes,
       });
     } else {
       setFormData({
@@ -80,10 +130,12 @@ const AllergiesConditions = ({ navigation }) => {
       }
       if (editingItem) {
         setAllergies(allergies.map(a =>
-          a.id === editingItem.id ? { ...editingItem, ...formData } : a
+          a.id === editingItem.id ? { ...editingItem, name: formData.name, severity: formData.severity, notes: formData.effect } : a
         ));
+        Alert.alert('Success', 'Allergy updated successfully!');
       } else {
-        setAllergies([...allergies, { id: Date.now(), ...formData }]);
+        setAllergies([...allergies, { id: Date.now(), name: formData.name, severity: formData.severity, notes: formData.effect }]);
+        Alert.alert('Success', 'Allergy added successfully!');
       }
     } else {
       if (!formData.diagnosed || !formData.status) {
@@ -92,10 +144,12 @@ const AllergiesConditions = ({ navigation }) => {
       }
       if (editingItem) {
         setConditions(conditions.map(c =>
-          c.id === editingItem.id ? { ...editingItem, ...formData } : c
+          c.id === editingItem.id ? { ...editingItem, name: formData.name, diagnosed: formData.diagnosed, status: formData.status } : c
         ));
+        Alert.alert('Success', 'Condition updated successfully!');
       } else {
-        setConditions([...conditions, { id: Date.now(), ...formData }]);
+        setConditions([...conditions, { id: Date.now(), name: formData.name, diagnosed: formData.diagnosed, status: formData.status }]);
+        Alert.alert('Success', 'Condition added successfully!');
       }
     }
     setModalVisible(false);
@@ -106,7 +160,10 @@ const AllergiesConditions = ({ navigation }) => {
       { text: 'Cancel' },
       {
         text: 'Delete',
-        onPress: () => setAllergies(allergies.filter(item => item.id !== id)),
+        onPress: () => {
+          setAllergies(allergies.filter(item => item.id !== id));
+          Alert.alert('Success', 'Allergy deleted successfully!');
+        },
       },
     ]);
   };
@@ -116,13 +173,16 @@ const AllergiesConditions = ({ navigation }) => {
       { text: 'Cancel' },
       {
         text: 'Delete',
-        onPress: () => setConditions(conditions.filter(item => item.id !== id)),
+        onPress: () => {
+          setConditions(conditions.filter(item => item.id !== id));
+          Alert.alert('Success', 'Condition deleted successfully!');
+        },
       },
     ]);
   };
 
   const getSeverityColor = (severity) => {
-    switch (severity.toLowerCase()) {
+    switch (severity?.toLowerCase()) {
       case 'severe':
         return '#e74c3c';
       case 'moderate':
@@ -133,6 +193,24 @@ const AllergiesConditions = ({ navigation }) => {
         return '#666';
     }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Icon name="arrow-left" size={24} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Allergies & Conditions</Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1E4B46" />
+          <Text style={styles.loadingText}>Loading your data...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -152,7 +230,7 @@ const AllergiesConditions = ({ navigation }) => {
           onPress={() => setActiveTab('allergies')}
         >
           <Text style={[styles.tabText, activeTab === 'allergies' && styles.activeTabText]}>
-            Allergies
+            Allergies ({allergies.length})
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -160,7 +238,7 @@ const AllergiesConditions = ({ navigation }) => {
           onPress={() => setActiveTab('conditions')}
         >
           <Text style={[styles.tabText, activeTab === 'conditions' && styles.activeTabText]}>
-            Conditions
+            Conditions ({conditions.length})
           </Text>
         </TouchableOpacity>
       </View>
@@ -168,61 +246,88 @@ const AllergiesConditions = ({ navigation }) => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {activeTab === 'allergies' ? (
           <>
-            {allergies.map((allergy) => (
-              <View key={allergy.id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.cardTitleRow}>
-                    <Icon name="alert-circle" size={20} color="#e74c3c" />
-                    <Text style={styles.cardTitle}>{allergy.name}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => handleDeleteAllergy(allergy.id)}>
-                    <Icon name="delete" size={20} color="#e74c3c" />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.cardContent}>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Severity:</Text>
-                    <View style={[styles.severityBadge, { backgroundColor: getSeverityColor(allergy.severity) + '20' }]}>
-                      <Text style={[styles.severityText, { color: getSeverityColor(allergy.severity) }]}>
-                        {allergy.severity}
-                      </Text>
+            {allergies.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Icon name="alert-circle-outline" size={64} color="#CCC" />
+                <Text style={styles.emptyStateText}>No allergies recorded</Text>
+                <Text style={styles.emptyStateSubtext}>Tap + to add your allergies</Text>
+              </View>
+            ) : (
+              allergies.map((allergy) => (
+                <View key={allergy.id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardTitleRow}>
+                      <Icon name="alert-circle" size={20} color="#e74c3c" />
+                      <Text style={styles.cardTitle}>{allergy.name}</Text>
+                    </View>
+                    <View style={styles.cardActions}>
+                      <TouchableOpacity onPress={() => handleEditItem(allergy)} style={styles.actionBtn}>
+                        <Icon name="pencil" size={18} color="#1E4B46" />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDeleteAllergy(allergy.id)} style={styles.actionBtn}>
+                        <Icon name="delete" size={18} color="#e74c3c" />
+                      </TouchableOpacity>
                     </View>
                   </View>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Notes:</Text>
-                    <Text style={styles.infoValue}>{allergy.notes}</Text>
+                  <View style={styles.cardContent}>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Severity:</Text>
+                      <View style={[styles.severityBadge, { backgroundColor: getSeverityColor(allergy.severity) + '20' }]}>
+                        <Text style={[styles.severityText, { color: getSeverityColor(allergy.severity) }]}>
+                          {allergy.severity}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Effect:</Text>
+                      <Text style={styles.infoValue}>{allergy.notes}</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))}
+              ))
+            )}
           </>
         ) : (
           <>
-            {conditions.map((condition) => (
-              <View key={condition.id} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.cardTitleRow}>
-                    <Icon name="medical-bag" size={20} color="#3498db" />
-                    <Text style={styles.cardTitle}>{condition.name}</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => handleDeleteCondition(condition.id)}>
-                    <Icon name="delete" size={20} color="#e74c3c" />
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.cardContent}>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Diagnosed:</Text>
-                    <Text style={styles.infoValue}>{condition.diagnosed}</Text>
-                  </View>
-                  <View style={styles.infoRow}>
-                    <Text style={styles.infoLabel}>Status:</Text>
-                    <Text style={styles.infoValue}>{condition.status}</Text>
-                  </View>
-                </View>
+            {conditions.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Icon name="medical-bag" size={64} color="#CCC" />
+                <Text style={styles.emptyStateText}>No conditions recorded</Text>
+                <Text style={styles.emptyStateSubtext}>Tap + to add your conditions</Text>
               </View>
-            ))}
+            ) : (
+              conditions.map((condition) => (
+                <View key={condition.id} style={styles.card}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.cardTitleRow}>
+                      <Icon name="medical-bag" size={20} color="#3498db" />
+                      <Text style={styles.cardTitle}>{condition.name}</Text>
+                    </View>
+                    <View style={styles.cardActions}>
+                      <TouchableOpacity onPress={() => handleEditItem(condition)} style={styles.actionBtn}>
+                        <Icon name="pencil" size={18} color="#1E4B46" />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleDeleteCondition(condition.id)} style={styles.actionBtn}>
+                        <Icon name="delete" size={18} color="#e74c3c" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  <View style={styles.cardContent}>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Diagnosed:</Text>
+                      <Text style={styles.infoValue}>{condition.diagnosed}</Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoLabel}>Status:</Text>
+                      <Text style={styles.infoValue}>{condition.status}</Text>
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
           </>
         )}
+        <View style={styles.bottomSpacing} />
       </ScrollView>
 
       <Modal
@@ -239,7 +344,7 @@ const AllergiesConditions = ({ navigation }) => {
 
             <TextInput
               style={styles.input}
-              placeholder={activeTab === 'allergies' ? 'Allergy name' : 'Condition name'}
+              placeholder={activeTab === 'allergies' ? 'Allergy name (e.g., Peanuts)' : 'Condition name (e.g., Diabetes)'}
               value={formData.name}
               onChangeText={(text) => setFormData({ ...formData, name: text })}
             />
@@ -254,9 +359,9 @@ const AllergiesConditions = ({ navigation }) => {
                 />
                 <TextInput
                   style={[styles.input, styles.textArea]}
-                  placeholder="Notes"
-                  value={formData.notes}
-                  onChangeText={(text) => setFormData({ ...formData, notes: text })}
+                  placeholder="Effect (e.g., Skin rash, Difficulty breathing)"
+                  value={formData.effect}
+                  onChangeText={(text) => setFormData({ ...formData, effect: text })}
                   multiline
                   numberOfLines={3}
                 />
@@ -265,13 +370,14 @@ const AllergiesConditions = ({ navigation }) => {
               <>
                 <TextInput
                   style={styles.input}
-                  placeholder="Year diagnosed"
+                  placeholder="Year diagnosed (e.g., 2020)"
                   value={formData.diagnosed}
                   onChangeText={(text) => setFormData({ ...formData, diagnosed: text })}
+                  keyboardType="numeric"
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Current status"
+                  placeholder="Current status (e.g., Under treatment)"
                   value={formData.status}
                   onChangeText={(text) => setFormData({ ...formData, status: text })}
                 />
@@ -303,6 +409,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
   header: {
     flexDirection: 'row',
@@ -338,7 +454,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 16,
-    color: '#1E4B46',
+    color: '#666',
     fontWeight: '500',
   },
   activeTabText: {
@@ -349,6 +465,22 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingTop: 20,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyStateText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#999',
+    marginTop: 16,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#CCC',
+    marginTop: 8,
   },
   card: {
     backgroundColor: '#fff',
@@ -378,6 +510,13 @@ const styles = StyleSheet.create({
     color: '#1E4B46',
     marginLeft: 10,
   },
+  cardActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionBtn: {
+    padding: 4,
+  },
   cardContent: {
     paddingLeft: 30,
   },
@@ -388,12 +527,13 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#1E4B46',
+    color: '#666',
+    fontWeight: '600',
     width: 80,
   },
   infoValue: {
     fontSize: 14,
-    color: '#1E4B46',
+    color: '#333',
     flex: 1,
   },
   severityBadge: {
@@ -404,6 +544,9 @@ const styles = StyleSheet.create({
   severityText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  bottomSpacing: {
+    height: 20,
   },
   modalOverlay: {
     flex: 1,

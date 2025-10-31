@@ -1,39 +1,27 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-  Modal,
-  TextInput,
-  Alert,
-} from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+const API_BASE_URL = 'http://10.185.77.5:5000/api';
 
 const OngoingMedication = ({ navigation }) => {
-  const [medications, setMedications] = useState([
-    {
-      id: 1,
-      name: 'Lisinopril 10mg',
-      purpose: 'Blood pressure control',
-      dosage: '1 tablet',
-      frequency: 'Once daily',
-      time: 'Morning',
-      startDate: '01/01/2024',
-    },
-    {
-      id: 2,
-      name: 'Metformin 500mg',
-      purpose: 'Diabetes management',
-      dosage: '2 tablets',
-      frequency: 'Twice daily',
-      time: 'After meals',
-      startDate: '15/02/2024',
-    },
-  ]);
-
+  const [medications, setMedications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [patientId, setPatientId] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [editingMed, setEditingMed] = useState(null);
   const [formData, setFormData] = useState({
@@ -44,6 +32,57 @@ const OngoingMedication = ({ navigation }) => {
     time: '',
     startDate: '',
   });
+
+  useEffect(() => {
+    loadMedications();
+  }, []);
+
+  const loadMedications = async () => {
+    try {
+      setLoading(true);
+
+      // Get user email from AsyncStorage
+      const email = await AsyncStorage.getItem('userEmail');
+      
+      if (!email) {
+        Alert.alert('Error', 'Please login again');
+        navigation.replace('SignIn');
+        return;
+      }
+
+      // Step 1: Get patient_id from users table
+      const userResponse = await fetch(`${API_BASE_URL}/user/email/${email}`);
+      const userData = await userResponse.json();
+
+      if (!userData.success) {
+        throw new Error('Failed to fetch user data');
+      }
+
+      const patId = userData.patient_id;
+      setPatientId(patId);
+
+      // Step 2: Get medications from patients table
+      const medsResponse = await fetch(`${API_BASE_URL}/medications/${patId}`);
+      const medsData = await medsResponse.json();
+
+      if (medsData.success) {
+        setMedications(medsData.medications || []);
+        console.log('✅ Medications loaded:', medsData.medications?.length || 0);
+      }
+
+    } catch (error) {
+      console.error('❌ Error loading medications:', error);
+      Alert.alert('Error', 'Failed to load medications. Please try again.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadMedications();
+  };
 
   const handleAddMedication = () => {
     setEditingMed(null);
@@ -69,26 +108,92 @@ const OngoingMedication = ({ navigation }) => {
       { text: 'Cancel' },
       {
         text: 'Delete',
-        onPress: () => setMedications(medications.filter(med => med.id !== id)),
+        onPress: async () => {
+          try {
+            const response = await fetch(`${API_BASE_URL}/medications/${patientId}/${id}`, {
+              method: 'DELETE',
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              setMedications(medications.filter(med => med.id !== id));
+              Alert.alert('Success', 'Medication deleted successfully');
+            } else {
+              throw new Error(data.message);
+            }
+          } catch (error) {
+            console.error('❌ Error deleting medication:', error);
+            Alert.alert('Error', 'Failed to delete medication');
+          }
+        },
       },
     ]);
   };
 
-  const handleSaveMedication = () => {
+  const handleSaveMedication = async () => {
     if (!formData.name || !formData.dosage || !formData.frequency) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
-    if (editingMed) {
-      setMedications(medications.map(med =>
-        med.id === editingMed.id ? { ...editingMed, ...formData } : med
-      ));
-    } else {
-      setMedications([...medications, { id: Date.now(), ...formData }]);
+    try {
+      if (editingMed) {
+        // Update existing medication
+        const response = await fetch(`${API_BASE_URL}/medications/${patientId}/${editingMed.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          setMedications(medications.map(med =>
+            med.id === editingMed.id ? { ...editingMed, ...formData } : med
+          ));
+          Alert.alert('Success', 'Medication updated successfully');
+        } else {
+          throw new Error(data.message);
+        }
+      } else {
+        // Add new medication
+        const response = await fetch(`${API_BASE_URL}/medications/${patientId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(formData),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          setMedications([...medications, data.medication]);
+          Alert.alert('Success', 'Medication added successfully');
+        } else {
+          throw new Error(data.message);
+        }
+      }
+      setModalVisible(false);
+    } catch (error) {
+      console.error('❌ Error saving medication:', error);
+      Alert.alert('Error', 'Failed to save medication');
     }
-    setModalVisible(false);
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1E4B46" />
+          <Text style={styles.loadingText}>Loading medications...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -102,59 +207,73 @@ const OngoingMedication = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1E4B46']} />
+        }
+      >
         <Text style={styles.description}>
           Keep track of your current medications and dosage schedules
         </Text>
 
-        {medications.map((med) => (
-          <View key={med.id} style={styles.medicationCard}>
-            <View style={styles.cardHeader}>
-              <View style={styles.iconWrapper}>
-                <Icon name="pill" size={24} color="#1E4B46" />
-              </View>
-              <View style={styles.headerInfo}>
-                <Text style={styles.medicationName}>{med.name}</Text>
-                <Text style={styles.purpose}>{med.purpose}</Text>
-              </View>
-              <View style={styles.actions}>
-                <TouchableOpacity
-                  style={styles.actionIcon}
-                  onPress={() => handleEditMedication(med)}
-                >
-                  <Icon name="pencil" size={18} color="#1E4B46" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.actionIcon}
-                  onPress={() => handleDeleteMedication(med.id)}
-                >
-                  <Icon name="delete" size={18} color="#e74c3c" />
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.divider} />
-
-            <View style={styles.detailsGrid}>
-              <View style={styles.detailItem}>
-                <Text style={styles.detailLabel}>Dosage</Text>
-                <Text style={styles.detailValue}>{med.dosage}</Text>
-              </View>
-              <View style={styles.detailItem}>
-                <Text style={styles.detailLabel}>Frequency</Text>
-                <Text style={styles.detailValue}>{med.frequency}</Text>
-              </View>
-              <View style={styles.detailItem}>
-                <Text style={styles.detailLabel}>Time</Text>
-                <Text style={styles.detailValue}>{med.time}</Text>
-              </View>
-              <View style={styles.detailItem}>
-                <Text style={styles.detailLabel}>Start Date</Text>
-                <Text style={styles.detailValue}>{med.startDate}</Text>
-              </View>
-            </View>
+        {medications.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Icon name="pill-off" size={64} color="#ccc" />
+            <Text style={styles.emptyText}>No medications added yet</Text>
+            <Text style={styles.emptySubtext}>Tap the + button to add your first medication</Text>
           </View>
-        ))}
+        ) : (
+          medications.map((med) => (
+            <View key={med.id} style={styles.medicationCard}>
+              <View style={styles.cardHeader}>
+                <View style={styles.iconWrapper}>
+                  <Icon name="pill" size={24} color="#1E4B46" />
+                </View>
+                <View style={styles.headerInfo}>
+                  <Text style={styles.medicationName}>{med.name}</Text>
+                  <Text style={styles.purpose}>{med.purpose}</Text>
+                </View>
+                <View style={styles.actions}>
+                  <TouchableOpacity
+                    style={styles.actionIcon}
+                    onPress={() => handleEditMedication(med)}
+                  >
+                    <Icon name="pencil" size={18} color="#1E4B46" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.actionIcon}
+                    onPress={() => handleDeleteMedication(med.id)}
+                  >
+                    <Icon name="delete" size={18} color="#e74c3c" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.detailsGrid}>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Dosage</Text>
+                  <Text style={styles.detailValue}>{med.dosage}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Frequency</Text>
+                  <Text style={styles.detailValue}>{med.frequency}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Time</Text>
+                  <Text style={styles.detailValue}>{med.time}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Start Date</Text>
+                  <Text style={styles.detailValue}>{med.startDate}</Text>
+                </View>
+              </View>
+            </View>
+          ))
+        )}
       </ScrollView>
 
       <Modal
@@ -172,7 +291,7 @@ const OngoingMedication = ({ navigation }) => {
 
               <TextInput
                 style={styles.input}
-                placeholder="Medication Name"
+                placeholder="Medication Name *"
                 value={formData.name}
                 onChangeText={(text) => setFormData({ ...formData, name: text })}
               />
@@ -186,14 +305,14 @@ const OngoingMedication = ({ navigation }) => {
 
               <TextInput
                 style={styles.input}
-                placeholder="Dosage (e.g., 1 tablet, 2 puffs)"
+                placeholder="Dosage (e.g., 1 tablet, 2 puffs) *"
                 value={formData.dosage}
                 onChangeText={(text) => setFormData({ ...formData, dosage: text })}
               />
 
               <TextInput
                 style={styles.input}
-                placeholder="Frequency (e.g., Once daily)"
+                placeholder="Frequency (e.g., Once daily) *"
                 value={formData.frequency}
                 onChangeText={(text) => setFormData({ ...formData, frequency: text })}
               />
@@ -239,6 +358,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#1E4B46',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -265,6 +394,23 @@ const styles = StyleSheet.create({
     color: '#1E4B46',
     marginBottom: 20,
     lineHeight: 20,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#666',
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
   },
   medicationCard: {
     backgroundColor: '#fff',

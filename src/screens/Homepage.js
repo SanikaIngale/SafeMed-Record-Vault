@@ -1,6 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Platform,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -13,11 +17,177 @@ import BottomNavigation from '../components/BottomNavigation';
 
 export default function HomePage({ navigation }) {
   const [activeNav, setActiveNav] = useState('Home');
+  const [userData, setUserData] = useState({
+    name: 'Loading...',
+    age: '-',
+    gender: '-',
+    patient_id: '-',
+    initials: 'NA'
+  });
+  const [consultationTimeline, setConsultationTimeline] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    try {
+      setLoading(true);
+      
+      // API URL based on platform
+      const apiUrl = Platform.OS === 'android' ? 'http://10.185.77.5:5000' : 'http://localhost:5000';
+      
+      // Try to get email from AsyncStorage first
+      let userEmail = await AsyncStorage.getItem('userEmail');
+      
+      // If no email, try to get patient_id directly (fallback)
+      if (!userEmail) {
+        const patientId = await AsyncStorage.getItem('patient_id');
+        
+        if (!patientId) {
+          console.error('No user email or patient_id found in storage');
+          Alert.alert('Error', 'Please login again');
+          setLoading(false);
+          return;
+        }
+        
+        // If we have patient_id, skip step 1 and go directly to step 2
+        const patientResponse = await fetch(`${apiUrl}/api/patients/${patientId}`);
+        const patientData = await patientResponse.json();
+        
+        if (patientData) {
+          setUserData({
+            name: patientData.name || 'User',
+            age: calculateAge(patientData.dob) || 'N/A',
+            gender: patientData.gender || 'N/A',
+            patient_id: patientData.patient_id || 'N/A',
+            initials: getInitials(patientData.name)
+          });
+
+          if (patientData.consultations && patientData.consultations.length > 0) {
+            const formattedConsultations = patientData.consultations
+              .sort((a, b) => new Date(b.date) - new Date(a.date))
+              .slice(0, 2)
+              .map(consultation => ({
+                id: consultation.consultation_id,
+                date: formatDate(consultation.date),
+                hospital: consultation.hospital,
+                doctor: consultation.doctor.name,
+                type: consultation.reason_for_visit,
+                time: extractTime(consultation.date),
+                fullConsultation: consultation
+              }));
+            
+            setConsultationTimeline(formattedConsultations);
+          }
+        }
+        
+        setLoading(false);
+        return;
+      }
+
+      // Step 1: Get patient_id from user table using email
+      const userResponse = await fetch(`${apiUrl}/api/user/email/${userEmail}`);
+      const userInfo = await userResponse.json();
+      
+      if (!userInfo.success || !userInfo.patient_id) {
+        console.error('User not found');
+        Alert.alert('Error', 'User data not found');
+        setLoading(false);
+        return;
+      }
+
+      const patientId = userInfo.patient_id;
+      
+      // Store patient_id for future use
+      await AsyncStorage.setItem('patient_id', patientId);
+
+      // Step 2: Get full patient data from patients table
+      const patientResponse = await fetch(`${apiUrl}/api/patients/${patientId}`);
+      const patientData = await patientResponse.json();
+      
+      if (patientData) {
+        // Set user data
+        setUserData({
+          name: patientData.name || 'User',
+          age: calculateAge(patientData.dob) || 'N/A',
+          gender: patientData.gender || 'N/A',
+          patient_id: patientData.patient_id || 'N/A',
+          initials: getInitials(patientData.name)
+        });
+
+        // Format consultation timeline from consultations array
+        if (patientData.consultations && patientData.consultations.length > 0) {
+          const formattedConsultations = patientData.consultations
+            .sort((a, b) => new Date(b.date) - new Date(a.date)) // Sort by date, newest first
+            .slice(0, 2) // Get only the 2 most recent
+            .map(consultation => ({
+              id: consultation.consultation_id,
+              date: formatDate(consultation.date),
+              hospital: consultation.hospital,
+              doctor: consultation.doctor.name,
+              type: consultation.reason_for_visit,
+              time: extractTime(consultation.date),
+              fullConsultation: consultation // Store full data for detail view
+            }));
+          
+          setConsultationTimeline(formattedConsultations);
+        }
+      }
+      
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setLoading(false);
+    }
+  };
+
+  const calculateAge = (dob) => {
+    if (!dob) return null;
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const getInitials = (name) => {
+    if (!name) return 'NA';
+    const names = name.split(' ');
+    return names.length > 1 
+      ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+      : names[0][0].toUpperCase();
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const day = date.getDate().toString().padStart(2, '0');
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day} ${month} ${year}`;
+  };
+
+  const extractTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    return `${hours}:${minutes} ${ampm}`;
+  };
 
   const handleNavigation = (navName) => {
     setActiveNav(navName);
   };
 
+  // Static data for recent reports (you can replace this later with actual data)
   const recentReports = [
     {
       id: 1,
@@ -35,24 +205,17 @@ export default function HomePage({ navigation }) {
     },
   ];
 
-    const consultationTimeline = [
-    {
-      id: 1,
-      date: '05 July 2025',
-      hospital: 'General Hospital',
-      doctor: 'Dr. Anya Sharma',
-      type: 'General Checkup',
-      time: '10:30 AM',
-    },
-    {
-      id: 2,
-      date: '12 June 2025',
-      hospital: 'General Hospital',
-      doctor: 'Dr. Anya Sharma',
-      type: 'General Checkup',
-      time: '02:00 PM',
-    },
-  ];
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="light-content" backgroundColor="#1E4B46" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1E4B46" />
+          <Text style={styles.loadingText}>Loading your health data...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -75,11 +238,11 @@ export default function HomePage({ navigation }) {
           <View style={styles.welcomeSection}>
             <View style={styles.welcomeText}>
               <Text style={styles.welcomeLabel}>Welcome</Text>
-              <Text style={styles.userName}>Ruchita Sharma</Text>
+              <Text style={styles.userName}>{userData.name}</Text>
             </View>
             <View style={styles.profileImageContainer}>
               <View style={styles.profileImage}>
-                <Text style={styles.profileInitial}>RS</Text>
+                <Text style={styles.profileInitial}>{userData.initials}</Text>
               </View>
             </View>
           </View>
@@ -88,15 +251,15 @@ export default function HomePage({ navigation }) {
           <View style={styles.userInfoContainer}>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Age</Text>
-              <Text style={styles.infoValue}>30 yrs</Text>
+              <Text style={styles.infoValue}>{userData.age} yrs</Text>
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>Gender</Text>
-              <Text style={styles.infoValue}>Female</Text>
+              <Text style={styles.infoValue}>{userData.gender}</Text>
             </View>
             <View style={styles.infoItem}>
               <Text style={styles.infoLabel}>User ID</Text>
-              <Text style={styles.infoValue}>USER12345</Text>
+              <Text style={styles.infoValue}>{userData.patient_id}</Text>
             </View>
           </View>
         </View>
@@ -110,62 +273,64 @@ export default function HomePage({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.timeline}>
-            {consultationTimeline.map((consultation, index) => (
-              <View key={consultation.id} style={styles.timelineItem}>
-                {/* Timeline Line */}
-                {index !== consultationTimeline.length - 1 && (
-                  <View style={styles.timelineLine} />
-                )}
+          {consultationTimeline.length > 0 ? (
+            <View style={styles.timeline}>
+              {consultationTimeline.map((consultation, index) => (
+                <View key={consultation.id} style={styles.timelineItem}>
+                  {/* Timeline Line */}
+                  {index !== consultationTimeline.length - 1 && (
+                    <View style={styles.timelineLine} />
+                  )}
 
-                {/* Timeline Dot */}
-                <View style={styles.timelineDotContainer}>
-                  <View style={styles.timelineDot}>
-                    <Ionicons name="medkit" size={14} color="#FFF" />
+                  {/* Timeline Dot */}
+                  <View style={styles.timelineDotContainer}>
+                    <View style={styles.timelineDot}>
+                      <Ionicons name="medkit" size={14} color="#FFF" />
+                    </View>
+                  </View>
+
+                  {/* Consultation Card */}
+                  <View style={styles.consultationCard}>
+                    <View style={styles.cardHeader}>
+                      <Text style={styles.dateText}>{consultation.date}</Text>
+                      <Text style={styles.timeText}>{consultation.time}</Text>
+                    </View>
+
+                    <View style={styles.cardContent}>
+                      <View style={styles.hospitalRow}>
+                        <Ionicons name="business" size={16} color="#1E4B46" />
+                        <Text style={styles.hospitalName}>{consultation.hospital}</Text>
+                      </View>
+
+                      <View style={styles.infoRow}>
+                        <Text style={styles.label}>Doctor:</Text>
+                        <Text style={styles.value}>{consultation.doctor}</Text>
+                      </View>
+
+                      <View style={styles.infoRow}>
+                        <Text style={styles.label}>Type:</Text>
+                        <Text style={styles.value}>{consultation.type}</Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity 
+                      style={styles.viewButton}
+                      onPress={() => navigation.navigate('VisitSummary', {
+                        consultation: consultation.fullConsultation
+                      })}
+                    >
+                      <Text style={styles.viewButtonText}>View Details</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
-
-                {/* Consultation Card */}
-                <View style={styles.consultationCard}>
-                  <View style={styles.cardHeader}>
-                    <Text style={styles.dateText}>{consultation.date}</Text>
-                    <Text style={styles.timeText}>{consultation.time}</Text>
-                  </View>
-
-                  <View style={styles.cardContent}>
-                    <View style={styles.hospitalRow}>
-                      <Ionicons name="business" size={16} color="#1E4B46" />
-                      <Text style={styles.hospitalName}>{consultation.hospital}</Text>
-                    </View>
-
-                    <View style={styles.infoRow}>
-                      <Text style={styles.label}>Doctor:</Text>
-                      <Text style={styles.value}>{consultation.doctor}</Text>
-                    </View>
-
-                    <View style={styles.infoRow}>
-                      <Text style={styles.label}>Type:</Text>
-                      <Text style={styles.value}>{consultation.type}</Text>
-                    </View>
-                  </View>
-
-                  <TouchableOpacity 
-                    style={styles.viewButton}
-                    onPress={() => navigation.navigate('VisitSummary', {
-                      consultation: {
-                        doctor: consultation.doctor,
-                        clinic: consultation.hospital,
-                        date: consultation.date,
-                        reason: 'Ongoing tiredness and periodic throbbing headaches',
-                      }
-                    })}
-                  >
-                    <Text style={styles.viewButtonText}>View Details</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="calendar-outline" size={48} color="#CCC" />
+              <Text style={styles.emptyStateText}>No consultations yet</Text>
+            </View>
+          )}
         </View>
 
         {/* Recent Reports */}
@@ -203,7 +368,7 @@ export default function HomePage({ navigation }) {
         <View style={styles.bottomSpacing} />
       </ScrollView>
 
-      {/* Bottom Navigation - Passing navigation prop */}
+      {/* Bottom Navigation */}
       <BottomNavigation 
         activeNav={activeNav} 
         onNavigate={handleNavigation}
@@ -217,6 +382,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666',
   },
   headerSection: {
     backgroundColor: '#1E4B46',
@@ -408,6 +584,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#ffff',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  emptyStateText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#999',
   },
   recentReportsSection: {
     paddingHorizontal: 16,

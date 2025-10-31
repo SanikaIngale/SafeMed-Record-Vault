@@ -1,44 +1,45 @@
-import React from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  SafeAreaView,
-  StatusBar,
-} from 'react-native';
-import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
-import {
-  useFonts,
   Poppins_400Regular,
   Poppins_600SemiBold,
   Poppins_700Bold,
+  useFonts,
 } from '@expo-google-fonts/poppins';
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
+import {
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-const AttachmentCard = ({ attachment }) => (
-  <View style={styles.attachmentCard}>
-    <View style={styles.attachmentIcon}>
-      <Icon name={attachment.icon} size={32} color="#1E4B46" />
-    </View>
-    <Text style={styles.attachmentText}>{attachment.type}</Text>
-  </View>
-);
+const AttachmentCard = ({ attachment, type }) => {
+  const getIconName = () => {
+    if (type === 'prescription') return 'file-document';
+    if (type === 'lab_report') return 'file-chart';
+    return 'file-document';
+  };
+
+  return (
+    <TouchableOpacity style={styles.attachmentCard}>
+      <View style={styles.attachmentIcon}>
+        <Icon name={getIconName()} size={32} color="#1E4B46" />
+      </View>
+      <Text style={styles.attachmentText}>{attachment}</Text>
+    </TouchableOpacity>
+  );
+};
 
 const VisitSummaryScreen = ({ navigation, route }) => {
   const { consultation } = route.params || {};
 
-  const visitDetails = {
-    doctor: consultation?.doctor || 'Dr. Anya Sharma',
-    clinic: consultation?.clinic || 'General Hospital',
-    date: consultation?.date || '05 July 25',
-    reasonForVisit: consultation?.reason || 'Ongoing tiredness and periodic throbbing headaches',
-    diagnosis: 'Indicative of migraine episodes aggravated by exhaustion',
-    additionalNotes: 'Maintain a regular sleep schedule\nIf symptoms persist or worsen, follow-up required',
-    attachments: [
-      { id: '1', type: 'Prescription', icon: 'file-document' },
-      { id: '2', type: 'Blood Test\nReport', icon: 'file-chart' },
-    ],
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    const options = { day: '2-digit', month: 'long', year: '2-digit' };
+    return date.toLocaleDateString('en-GB', options).replace(/ /g, ' ');
   };
 
   const handleBack = () => {
@@ -54,6 +55,25 @@ const VisitSummaryScreen = ({ navigation, route }) => {
   if (!fontsLoaded) {
     return null;
   }
+
+  // Extract data from consultation object
+  const doctorName = consultation?.doctor?.name || 'N/A';
+  const doctorSpecialization = consultation?.doctor?.specialization || '';
+  const hospital = consultation?.hospital || 'N/A';
+  const department = consultation?.department || '';
+  const date = formatDate(consultation?.date);
+  const reasonForVisit = consultation?.reason_for_visit || 'N/A';
+  const diagnosis = consultation?.diagnosis || 'N/A';
+  const doctorNotes = consultation?.doctor_notes || 'No additional notes';
+  const nextSteps = consultation?.next_steps || '';
+  const followUpDate = consultation?.follow_up_date ? formatDate(consultation.follow_up_date) : null;
+
+  // Parse lab reports (format: "Test Name, File Path")
+  const labReports = consultation?.lab_reports 
+    ? consultation.lab_reports.split(',').filter(item => item.trim() && !item.includes('/uploads/'))
+    : [];
+
+  const hasAttachments = consultation?.prescriptions || labReports.length > 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -73,45 +93,84 @@ const VisitSummaryScreen = ({ navigation, route }) => {
           <View style={styles.doctorHeader}>
             <View style={styles.doctorImage}>
               <Text style={styles.doctorInitial}>
-                {visitDetails.doctor.charAt(4)}
+                {doctorName.charAt(4) || 'D'}
               </Text>
             </View>
             <View style={styles.doctorInfo}>
-              <Text style={styles.doctorName}>{visitDetails.doctor}</Text>
-              <Text style={styles.clinicName}>{visitDetails.clinic}</Text>
-              <Text style={styles.dateText}>{visitDetails.date}</Text>
+              <Text style={styles.doctorName}>{doctorName}</Text>
+              {doctorSpecialization && (
+                <Text style={styles.specializationText}>{doctorSpecialization}</Text>
+              )}
+              <Text style={styles.clinicName}>{hospital}</Text>
+              {department && (
+                <Text style={styles.departmentText}>{department}</Text>
+              )}
+              <Text style={styles.dateText}>{date}</Text>
             </View>
           </View>
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Reason for Visit</Text>
-            <Text style={styles.sectionText}>{visitDetails.reasonForVisit}</Text>
+            <Text style={styles.sectionText}>{reasonForVisit}</Text>
           </View>
 
           <View style={styles.divider} />
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Diagnosis</Text>
-            <Text style={styles.sectionText}>{visitDetails.diagnosis}</Text>
+            <Text style={styles.sectionText}>{diagnosis}</Text>
           </View>
 
           <View style={styles.divider} />
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Additional Notes</Text>
-            <Text style={styles.sectionText}>{visitDetails.additionalNotes}</Text>
+            <Text style={styles.sectionTitle}>Doctor's Notes</Text>
+            <Text style={styles.sectionText}>{doctorNotes}</Text>
           </View>
 
-          <View style={styles.divider} />
+          {nextSteps && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Next Steps</Text>
+                <Text style={styles.sectionText}>{nextSteps}</Text>
+              </View>
+            </>
+          )}
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Attachments</Text>
-            <View style={styles.attachmentsContainer}>
-              {visitDetails.attachments.map((attachment) => (
-                <AttachmentCard key={attachment.id} attachment={attachment} />
-              ))}
-            </View>
-          </View>
+          {followUpDate && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Follow-up Date</Text>
+                <Text style={styles.sectionText}>{followUpDate}</Text>
+              </View>
+            </>
+          )}
+
+          {hasAttachments && (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Attachments</Text>
+                <View style={styles.attachmentsContainer}>
+                  {consultation?.prescriptions && (
+                    <AttachmentCard 
+                      attachment="Prescription" 
+                      type="prescription"
+                    />
+                  )}
+                  {labReports.map((report, index) => (
+                    <AttachmentCard 
+                      key={index}
+                      attachment={report.trim()} 
+                      type="lab_report"
+                    />
+                  ))}
+                </View>
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -186,13 +245,25 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: 'Poppins_700Bold',
     color: '#1e4b46',
-    marginBottom: 4,
+    marginBottom: 2,
     fontWeight: '700',
+  },
+  specializationText: {
+    fontSize: 13,
+    fontFamily: 'Poppins_400Regular',
+    color: '#666',
+    marginBottom: 2,
   },
   clinicName: {
     fontSize: 14,
     fontFamily: 'Poppins_400Regular',
     color: '#1e4b46',
+    marginBottom: 2,
+  },
+  departmentText: {
+    fontSize: 13,
+    fontFamily: 'Poppins_400Regular',
+    color: '#666',
     marginBottom: 2,
   },
   dateText: {
@@ -223,19 +294,19 @@ const styles = StyleSheet.create({
   },
   attachmentsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    fontFamily: 'Poppins_600SemiBold',
+    flexWrap: 'wrap',
     marginTop: 10,
+    gap: 10,
   },
   attachmentCard: {
     flex: 1,
+    minWidth: '45%',
     backgroundColor: '#e8f5f3',
     borderRadius: 12,
     padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 120,
-    marginHorizontal: 5,
   },
   attachmentIcon: {
     marginBottom: 10,
