@@ -15,6 +15,11 @@ import {
   View,
 } from 'react-native';
 
+const API_URL =
+  Platform.OS === 'android'
+    ? 'http://10.164.220.89:5000'
+    : 'http://localhost:5000';
+
 const AllergiesConditions = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('allergies');
   const [modalVisible, setModalVisible] = useState(false);
@@ -39,52 +44,65 @@ const AllergiesConditions = ({ navigation }) => {
   const fetchPatientData = async () => {
     try {
       setLoading(true);
-      
-      const apiUrl = Platform.OS === 'android' ? 'http://10.185.77.5:5000' : 'http://localhost:5000';
-      
-      // Get patient_id from AsyncStorage
+
       const patientId = await AsyncStorage.getItem('patient_id');
-      
       if (!patientId) {
         Alert.alert('Error', 'Patient ID not found. Please login again.');
         setLoading(false);
         return;
       }
 
-      // Fetch patient data
-      const response = await fetch(`${apiUrl}/api/patients/${patientId}`);
+      const response = await fetch(`${API_URL}/api/patients/${patientId}`);
       const patientData = await response.json();
 
       if (patientData && patientData.success !== false) {
-        // Set allergies
-        if (patientData.allergies && Array.isArray(patientData.allergies)) {
-          const formattedAllergies = patientData.allergies.map((allergy, index) => ({
-            id: index + 1,
-            name: allergy.name,
-            severity: allergy.severity,
-            notes: allergy.effect || 'No notes'
-          }));
-          setAllergies(formattedAllergies);
+        if (Array.isArray(patientData.allergies)) {
+          setAllergies(
+            patientData.allergies.map((a, index) => ({
+              id: index + 1,
+              name: a.name,
+              severity: a.severity,
+              notes: a.effect || 'No notes',
+            }))
+          );
         }
 
-        // Set conditions
-        if (patientData.conditions && Array.isArray(patientData.conditions)) {
-          const formattedConditions = patientData.conditions.map((condition, index) => ({
-            id: index + 1,
-            name: condition.name,
-            diagnosed: condition.diagnosed_year?.toString() || 'N/A',
-            status: condition.status || 'Unknown'
-          }));
-          setConditions(formattedConditions);
+        if (Array.isArray(patientData.conditions)) {
+          setConditions(
+            patientData.conditions.map((c, index) => ({
+              id: index + 1,
+              name: c.name,
+              diagnosed: c.diagnosed_year?.toString() || 'N/A',
+              status: c.status || 'Unknown',
+            }))
+          );
         }
       }
 
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching patient data:', error);
-      Alert.alert('Error', 'Failed to load data. Please try again.');
+      console.error(error);
+      Alert.alert('Error', 'Failed to load data');
       setLoading(false);
     }
+  };
+
+  const saveAllergies = async (updated) => {
+    const patientId = await AsyncStorage.getItem('patient_id');
+    await fetch(`${API_URL}/api/patients/${patientId}/allergies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ allergies: updated }),
+    });
+  };
+
+  const saveConditions = async (updated) => {
+    const patientId = await AsyncStorage.getItem('patient_id');
+    await fetch(`${API_URL}/api/patients/${patientId}/conditions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conditions: updated }),
+    });
   };
 
   const handleAddItem = () => {
@@ -117,7 +135,7 @@ const AllergiesConditions = ({ navigation }) => {
     setModalVisible(true);
   };
 
-  const handleSaveItem = () => {
+  const handleSaveItem = async () => {
     if (!formData.name) {
       Alert.alert('Error', 'Please enter a name');
       return;
@@ -128,30 +146,35 @@ const AllergiesConditions = ({ navigation }) => {
         Alert.alert('Error', 'Please enter severity');
         return;
       }
-      if (editingItem) {
-        setAllergies(allergies.map(a =>
-          a.id === editingItem.id ? { ...editingItem, name: formData.name, severity: formData.severity, notes: formData.effect } : a
-        ));
-        Alert.alert('Success', 'Allergy updated successfully!');
-      } else {
-        setAllergies([...allergies, { id: Date.now(), name: formData.name, severity: formData.severity, notes: formData.effect }]);
-        Alert.alert('Success', 'Allergy added successfully!');
-      }
+
+      const updated = editingItem
+        ? allergies.map(a =>
+            a.id === editingItem.id
+              ? { ...editingItem, name: formData.name, severity: formData.severity, notes: formData.effect }
+              : a
+          )
+        : [...allergies, { id: Date.now(), name: formData.name, severity: formData.severity, notes: formData.effect }];
+
+      setAllergies(updated);
+      await saveAllergies(updated);
     } else {
       if (!formData.diagnosed || !formData.status) {
         Alert.alert('Error', 'Please fill in all fields');
         return;
       }
-      if (editingItem) {
-        setConditions(conditions.map(c =>
-          c.id === editingItem.id ? { ...editingItem, name: formData.name, diagnosed: formData.diagnosed, status: formData.status } : c
-        ));
-        Alert.alert('Success', 'Condition updated successfully!');
-      } else {
-        setConditions([...conditions, { id: Date.now(), name: formData.name, diagnosed: formData.diagnosed, status: formData.status }]);
-        Alert.alert('Success', 'Condition added successfully!');
-      }
+
+      const updated = editingItem
+        ? conditions.map(c =>
+            c.id === editingItem.id
+              ? { ...editingItem, name: formData.name, diagnosed: formData.diagnosed, status: formData.status }
+              : c
+          )
+        : [...conditions, { id: Date.now(), name: formData.name, diagnosed: formData.diagnosed, status: formData.status }];
+
+      setConditions(updated);
+      await saveConditions(updated);
     }
+
     setModalVisible(false);
   };
 
@@ -160,9 +183,10 @@ const AllergiesConditions = ({ navigation }) => {
       { text: 'Cancel' },
       {
         text: 'Delete',
-        onPress: () => {
-          setAllergies(allergies.filter(item => item.id !== id));
-          Alert.alert('Success', 'Allergy deleted successfully!');
+        onPress: async () => {
+          const updated = allergies.filter(item => item.id !== id);
+          setAllergies(updated);
+          await saveAllergies(updated);
         },
       },
     ]);
@@ -173,9 +197,10 @@ const AllergiesConditions = ({ navigation }) => {
       { text: 'Cancel' },
       {
         text: 'Delete',
-        onPress: () => {
-          setConditions(conditions.filter(item => item.id !== id));
-          Alert.alert('Success', 'Condition deleted successfully!');
+        onPress: async () => {
+          const updated = conditions.filter(item => item.id !== id);
+          setConditions(updated);
+          await saveConditions(updated);
         },
       },
     ]);
@@ -193,6 +218,9 @@ const AllergiesConditions = ({ navigation }) => {
         return '#666';
     }
   };
+
+  
+
 
   if (loading) {
     return (

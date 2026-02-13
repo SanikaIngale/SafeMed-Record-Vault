@@ -26,6 +26,7 @@ export default function HomePage({ navigation }) {
   });
   const [consultationTimeline, setConsultationTimeline] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isNewUser, setIsNewUser] = useState(false);
 
   useEffect(() => {
     fetchUserData();
@@ -35,8 +36,12 @@ export default function HomePage({ navigation }) {
     try {
       setLoading(true);
       
+      // Check if user is new
+      const newUserFlag = await AsyncStorage.getItem('isNewUser');
+      setIsNewUser(newUserFlag === 'true');
+      
       // API URL based on platform
-      const apiUrl = Platform.OS === 'android' ? 'http://10.185.77.5:5000' : 'http://localhost:5000';
+      const apiUrl = Platform.OS === 'android' ? 'http://10.164.220.89:5000' : 'http://localhost:5000';
       
       // Try to get email from AsyncStorage first
       let userEmail = await AsyncStorage.getItem('userEmail');
@@ -57,10 +62,15 @@ export default function HomePage({ navigation }) {
         const patientData = await patientResponse.json();
         
         if (patientData) {
+          // Extract demographics from JSONB or use defaults
+          const demographics = patientData.demographics || {};
+          const dob = demographics.dob || patientData.dob;
+          const gender = demographics.gender || patientData.gender || 'N/A';
+          
           setUserData({
             name: patientData.name || 'User',
-            age: calculateAge(patientData.dob) || 'N/A',
-            gender: patientData.gender || 'N/A',
+            age: calculateAge(dob) || 'N/A',
+            gender: gender,
             patient_id: patientData.patient_id || 'N/A',
             initials: getInitials(patientData.name)
           });
@@ -108,11 +118,16 @@ export default function HomePage({ navigation }) {
       const patientData = await patientResponse.json();
       
       if (patientData) {
+        // Extract demographics from JSONB or use defaults
+        const demographics = patientData.demographics || {};
+        const dob = demographics.dob || patientData.dob;
+        const gender = demographics.gender || patientData.gender || 'N/A';
+        
         // Set user data
         setUserData({
           name: patientData.name || 'User',
-          age: calculateAge(patientData.dob) || 'N/A',
-          gender: patientData.gender || 'N/A',
+          age: calculateAge(dob) || 'N/A',
+          gender: gender,
           patient_id: patientData.patient_id || 'N/A',
           initials: getInitials(patientData.name)
         });
@@ -264,7 +279,8 @@ export default function HomePage({ navigation }) {
           </View>
         </View>
 
-        {/* Consultation Timeline */}
+        {/* Consultation Timeline - Hidden for new users */}
+        
         <View style={styles.timelineSection}>
           <View style={styles.timelineHeader}>
             <Text style={styles.sectionTitle}>Consultation Timeline</Text>
@@ -332,8 +348,43 @@ export default function HomePage({ navigation }) {
             </View>
           )}
         </View>
+      
 
-        {/* Recent Reports */}
+        {/* New User Welcome Section */}
+        {isNewUser && (
+          <View style={styles.newUserSection}>
+            <View style={styles.welcomeCard}>
+              <Ionicons name="checkmark-circle" size={48} color="#4CAF50" />
+              <Text style={styles.welcomeCardTitle}>Profile Complete!</Text>
+              <Text style={styles.welcomeCardText}>
+                Your profile is all set. Here's what you can do next:
+              </Text>
+              <View style={styles.featureList}>
+                <View style={styles.featureItem}>
+                  <Ionicons name="checkmark" size={20} color="#1E4B46" />
+                  <Text style={styles.featureText}>View your health records</Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Ionicons name="checkmark" size={20} color="#1E4B46" />
+                  <Text style={styles.featureText}>Track your medications</Text>
+                </View>
+                <View style={styles.featureItem}>
+                  <Ionicons name="checkmark" size={20} color="#1E4B46" />
+                  <Text style={styles.featureText}>Manage emergency contacts</Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                style={styles.exploreButton}
+                onPress={() => navigation.navigate('Profile')}
+              >
+                <Text style={styles.exploreButtonText}>Explore Your Profile</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Recent Reports - Hidden for new users */}
+        {!isNewUser && (
         <View style={styles.recentReportsSection}>
           <Text style={styles.sectionTitle}>Recent Reports</Text>
           <ScrollView
@@ -364,6 +415,7 @@ export default function HomePage({ navigation }) {
             ))}
           </ScrollView>
         </View>
+        )}
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
@@ -657,5 +709,61 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 20,
+  },
+  newUserSection: {
+    paddingHorizontal: 16,
+    marginVertical: 24,
+  },
+  welcomeCard: {
+    backgroundColor: '#FFF',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  welcomeCardTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E4B46',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  welcomeCardText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  featureList: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  featureText: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 12,
+    fontWeight: '500',
+  },
+  exploreButton: {
+    backgroundColor: '#1E4B46',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+  },
+  exploreButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

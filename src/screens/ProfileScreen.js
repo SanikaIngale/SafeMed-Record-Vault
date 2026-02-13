@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   ActivityIndicator,
   Alert,
@@ -12,6 +13,7 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import { AuthContext } from '../../navigation/AppNavigator';
 import BottomNavigation from '../components/BottomNavigation';
 
 const ProfileScreen = ({ navigation }) => {
@@ -22,79 +24,58 @@ const ProfileScreen = ({ navigation }) => {
     patient_id: '-'
   });
   const [loading, setLoading] = useState(true);
+  const authContext = useContext(AuthContext);
 
-  useEffect(() => {
-    fetchUserData();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchUserData();
+    }, [])
+  );
 
   const fetchUserData = async () => {
     try {
       setLoading(true);
       
-      const apiUrl = Platform.OS === 'android' ? 'http://10.185.77.5:5000' : 'http://localhost:5000';
+      const apiUrl = Platform.OS === 'android' ? 'http://10.164.220.89:5000' : 'http://localhost:5000';
       
-      // Try to get email from AsyncStorage
+      // Get patient_id and userEmail from AsyncStorage
+      let patientId = await AsyncStorage.getItem('patient_id');
       let userEmail = await AsyncStorage.getItem('userEmail');
       
-      if (!userEmail) {
-        // Fallback: try patient_id
-        const patientId = await AsyncStorage.getItem('patient_id');
-        
-        if (!patientId) {
-          console.error('No user data found in storage');
-          setLoading(false);
-          return;
-        }
-        
-        // Fetch directly using patient_id
-        const patientResponse = await fetch(`${apiUrl}/api/patients/${patientId}`);
-        const patientData = await patientResponse.json();
-        
-        if (patientData && patientData.success !== false) {
-          setUserData({
-            name: patientData.name || 'User',
-            initials: getInitials(patientData.name),
-            patient_id: patientData.patient_id || '-',
-            email: patientData.contact_info?.email || '-',
-            phone: patientData.contact_info?.phone || '-',
-            dob: patientData.dob || null,
-            gender: patientData.gender || '-',
-            blood_group: patientData.blood_group || '-'
-          });
-        }
-        
+      if (!patientId) {
+        console.error('No patient_id found in storage');
         setLoading(false);
         return;
       }
 
-      // Fetch using email (two-step process)
-      const userResponse = await fetch(`${apiUrl}/api/user/email/${userEmail}`);
-      const userInfo = await userResponse.json();
-      
-      if (!userInfo.success || !userInfo.patient_id) {
-        console.error('User not found');
-        setLoading(false);
-        return;
-      }
-
-      const patientId = userInfo.patient_id;
-      
-      // Get full patient data
+      // Fetch patient basic data
       const patientResponse = await fetch(`${apiUrl}/api/patients/${patientId}`);
       const patientData = await patientResponse.json();
       
-      if (patientData && patientData.success !== false) {
-        setUserData({
-          name: patientData.name || 'User',
-          initials: getInitials(patientData.name),
-          patient_id: patientData.patient_id || '-',
-          email: patientData.contact_info?.email || userEmail,
-          phone: patientData.contact_info?.phone || '-',
-          dob: patientData.dob || null,
-          gender: patientData.gender || '-',
-          blood_group: patientData.blood_group || '-'
-        });
+      if (!patientData || patientData.success === false) {
+        console.error('Patient not found');
+        setLoading(false);
+        return;
       }
+
+      // Fetch demographics data
+      const demographicsResponse = await fetch(`${apiUrl}/api/patients/${patientId}/demographics`);
+      const demographicsData = await demographicsResponse.json();
+      
+      const demographics = demographicsData.success ? demographicsData.demographics : {};
+      
+      setUserData({
+        name: patientData.name || 'User',
+        initials: getInitials(patientData.name),
+        patient_id: patientData.patient_id || '-',
+        email: userEmail || '-',
+        phone: patientData.phone || '-',
+        dob: demographics.dob || null,
+        gender: demographics.gender || '-',
+        blood_group: demographics.bloodType || '-',
+        height: demographics.height || '-',
+        weight: demographics.weight || '-'
+      });
       
       setLoading(false);
     } catch (error) {
@@ -122,21 +103,24 @@ const ProfileScreen = ({ navigation }) => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // Clear AsyncStorage
-              await AsyncStorage.multiRemove([
-                'userToken',
-                'userData',
-                'userEmail',
-                'patient_id'
-              ]);
+              if (authContext && authContext.signOut) {
+                await authContext.signOut();
+              } else {
+                console.warn('AuthContext not available');
+                // Fallback: manually clear storage and navigate
+                await AsyncStorage.multiRemove([
+                  'userToken',
+                  'userData',
+                  'userEmail',
+                  'patient_id',
+                  'userPhone',
+                  'userName',
+                  'userDemographics',
+                  'isNewUser',
+                ]);
+              }
               
               console.log('✅ User logged out successfully');
-              
-              // Navigate to SignIn
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'SignIn' }],
-              });
             } catch (error) {
               console.error('Error during logout:', error);
               Alert.alert('Error', 'Failed to logout. Please try again.');

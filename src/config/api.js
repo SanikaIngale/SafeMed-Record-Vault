@@ -3,7 +3,7 @@
 
 
 // Change this to your computer's IP address
-const LOCAL_IP = '10.185.77.5';
+const LOCAL_IP = '10.164.220.89';
 const PORT = '5000';
 
 export const API_URL = `http://${LOCAL_IP}:${PORT}`;
@@ -14,6 +14,8 @@ export const API_ENDPOINTS = {
   SIGNIN: `${API_URL}/api/signin`,
   HEALTH: `${API_URL}/api/health`,
   PROFILE: `${API_URL}/api/user/profile`,
+  SAVE_DEMOGRAPHICS: `${API_URL}/api/patients/demographics`,
+  GET_PATIENT: `${API_URL}/api/patients`,
 };
 
 // Helper function for making API calls

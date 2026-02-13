@@ -13,7 +13,7 @@ export default function SignUpScreen({ navigation, route }) {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const { userCredentials } = route.params || {};
+  const { userCredentials, setIsAuthenticated } = route.params || {};
 
   useEffect(() => {
     if (userCredentials) {
@@ -69,20 +69,23 @@ export default function SignUpScreen({ navigation, route }) {
         // Store token and user data
         await AsyncStorage.setItem('userToken', data.token);
         await AsyncStorage.setItem('userData', JSON.stringify(data.user));
+        await AsyncStorage.setItem('isNewUser', 'true');
+        await AsyncStorage.setItem('userEmail', email.toLowerCase());
 
         Alert.alert(
           'Success!',
-          `Account created for ${name}. Please verify your mobile number.`,
+          `Account created for ${name}. Let's complete your profile!`,
           [
             {
               text: 'Continue',
-              onPress: () => navigation.navigate('OTP', { 
-                mobileNumber, 
-                name, 
-                email,
-                userId: data.user.id,
-                token: data.token
-              }),
+              onPress: () => {
+                navigation.navigate('ProfileDetails', {
+                  userId: data.user.id,
+                  email: email.toLowerCase(),
+                  name: name,
+                  setIsAuthenticated,
+                });
+              },
             },
           ]
         );

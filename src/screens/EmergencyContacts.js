@@ -21,6 +21,8 @@ const EmergencyContacts = ({ navigation }) => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [patientId, setPatientId] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
     relation: '',
@@ -35,33 +37,32 @@ const EmergencyContacts = ({ navigation }) => {
     try {
       setLoading(true);
       
-      const apiUrl = Platform.OS === 'android' ? 'http://10.185.77.5:5000' : 'http://localhost:5000';
+      const apiUrl = Platform.OS === 'android' ? 'http://10.164.220.89:5000' : 'http://localhost:5000';
       
       // Get patient_id from AsyncStorage
-      const patientId = await AsyncStorage.getItem('patient_id');
+      const patId = await AsyncStorage.getItem('patient_id');
       
-      if (!patientId) {
+      if (!patId) {
         Alert.alert('Error', 'Patient ID not found. Please login again.');
         setLoading(false);
         return;
       }
 
-      // Fetch patient data
-      const response = await fetch(`${apiUrl}/api/patients/${patientId}`);
-      const patientData = await response.json();
+      setPatientId(patId);
 
-      if (patientData && patientData.success !== false) {
-        // Set emergency contact from patient data
-        if (patientData.emergency_contact) {
-          const emergencyContact = {
-            id: 1,
-            name: patientData.emergency_contact.name,
-            relation: patientData.emergency_contact.relation,
-            phone: patientData.emergency_contact.phone,
-            isPrimary: true,
-          };
-          setContacts([emergencyContact]);
-        }
+      // Fetch emergency contacts
+      const response = await fetch(`${apiUrl}/api/patients/${patId}/emergency-contacts`);
+      const data = await response.json();
+
+      if (data.success && data.emergency_contacts) {
+        const formattedContacts = data.emergency_contacts.map((contact, index) => ({
+          id: contact.id || index,
+          name: contact.name,
+          relation: contact.relation,
+          phone: contact.phone,
+          isPrimary: index === 0,
+        }));
+        setContacts(formattedContacts);
       }
 
       setLoading(false);
@@ -97,9 +98,38 @@ const EmergencyContacts = ({ navigation }) => {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () => {
-            setContacts(contacts.filter(contact => contact.id !== id));
-            Alert.alert('Success', 'Contact deleted successfully!');
+          onPress: async () => {
+            setSaving(true);
+            try {
+              const apiUrl = Platform.OS === 'android' ? 'http://10.164.220.89:5000' : 'http://localhost:5000';
+              
+              const updatedContacts = contacts.filter(contact => contact.id !== id);
+              
+              // Save to backend
+              const response = await fetch(`${apiUrl}/api/patients/${patientId}/emergency-contacts`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  emergency_contacts: updatedContacts.map(({ id, isPrimary, ...rest }) => rest),
+                }),
+              });
+
+              const data = await response.json();
+
+              if (response.ok && data.success) {
+                setContacts(updatedContacts);
+                Alert.alert('Success', 'Contact deleted successfully!');
+              } else {
+                Alert.alert('Error', data.message || 'Failed to delete contact');
+              }
+            } catch (error) {
+              console.error('Error deleting contact:', error);
+              Alert.alert('Error', 'Failed to delete contact. Please try again.');
+            } finally {
+              setSaving(false);
+            }
           },
         },
       ]
@@ -113,7 +143,7 @@ const EmergencyContacts = ({ navigation }) => {
     });
   };
 
-  const handleSaveContact = () => {
+  const handleSaveContact = async () => {
     if (!formData.name || !formData.relation || !formData.phone) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -126,18 +156,48 @@ const EmergencyContacts = ({ navigation }) => {
       return;
     }
 
-    if (editingContact) {
-      setContacts(contacts.map(contact =>
-        contact.id === editingContact.id
-          ? { ...contact, ...formData }
-          : contact
-      ));
-      Alert.alert('Success', 'Contact updated successfully!');
-    } else {
-      setContacts([...contacts, { id: Date.now(), ...formData, isPrimary: false }]);
-      Alert.alert('Success', 'Contact added successfully!');
+    setSaving(true);
+    try {
+      const apiUrl = Platform.OS === 'android' ? 'http://10.164.220.89:5000' : 'http://localhost:5000';
+      
+      let updatedContacts;
+      
+      if (editingContact) {
+        updatedContacts = contacts.map(contact =>
+          contact.id === editingContact.id
+            ? { ...contact, ...formData }
+            : contact
+        );
+      } else {
+        updatedContacts = [...contacts, { id: Date.now(), ...formData, isPrimary: false }];
+      }
+
+      // Save to backend
+      const response = await fetch(`${apiUrl}/api/patients/${patientId}/emergency-contacts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          emergency_contacts: updatedContacts.map(({ id, isPrimary, ...rest }) => rest),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setContacts(updatedContacts);
+        Alert.alert('Success', editingContact ? 'Contact updated successfully!' : 'Contact added successfully!');
+        setModalVisible(false);
+      } else {
+        Alert.alert('Error', data.message || 'Failed to save contact');
+      }
+    } catch (error) {
+      console.error('Error saving contact:', error);
+      Alert.alert('Error', 'Failed to save contact. Please try again.');
+    } finally {
+      setSaving(false);
     }
-    setModalVisible(false);
   };
 
   if (loading) {
@@ -282,15 +342,17 @@ const EmergencyContacts = ({ navigation }) => {
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setModalVisible(false)}
+                disabled={saving}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.saveButton]}
+                style={[styles.modalButton, styles.saveButton, saving && styles.saveButtonDisabled]}
                 onPress={handleSaveContact}
+                disabled={saving}
               >
                 <Text style={styles.saveButtonText}>
-                  {editingContact ? 'Update' : 'Save'}
+                  {saving ? 'Saving...' : editingContact ? 'Update' : 'Save'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -512,6 +574,9 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#1E4B46',
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
   },
   saveButtonText: {
     color: '#fff',

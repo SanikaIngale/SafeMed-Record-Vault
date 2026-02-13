@@ -15,23 +15,10 @@ import {
 
 // IMPORTANT: Change this based on your setup
 const getApiUrl = () => {
-  // For Android Emulator: use 10.0.2.2
-  // For Physical Device or Expo Go: use your computer's IP (192.168.29.145)
-  // For iOS Simulator: use localhost
-  
-  if (Platform.OS === 'android') {
-    // Try this for Android Emulator
-    return 'http://10.185.77.5:5000';
-    
-    // If above doesn't work and you're using a physical device, use:
-    // return 'http://192.168.29.145:5000';
-  } else {
-    // For iOS
-    return 'http://localhost:5000';
-    // For physical iOS device, use:
-    // return 'http://192.168.29.145:5000';
-  }
+  // Expo Go on physical device requires laptop LAN IP
+  return 'http://10.164.220.89:5000';
 };
+
 
 export default function SignInScreen({ navigation, route }) {
   const [email, setEmail] = useState('');
@@ -203,7 +190,7 @@ export default function SignInScreen({ navigation, route }) {
         Alert.alert('Success', 'Login successful!', [
           {
             text: 'OK',
-            onPress: () => navigation.replace('MainApp', { user: data.user }),
+            onPress: () => navigation.replace('Homepage'),
           },
         ]);
       } else if (response.status === 401) {
@@ -306,15 +293,15 @@ export default function SignInScreen({ navigation, route }) {
           onPress={testConnection}
           style={styles.wifiButton}
         >
-          <MaterialCommunityIcons name="wifi-check" size={24} color="#1E4B46" />
+          {/* <MaterialCommunityIcons name="wifi-check" size={24} color="#1E4B46" /> */}
         </TouchableOpacity>
       </View>
 
       {/* API URL Display */}
-      <View style={styles.apiUrlContainer}>
+      {/* <View style={styles.apiUrlContainer}>
         <Text style={styles.apiUrlLabel}>API: </Text>
         <Text style={styles.apiUrlText}>{getApiUrl()}</Text>
-      </View>
+      </View> */}
 
       <View style={styles.formContainer}>
         <View style={styles.inputWrapper}>
