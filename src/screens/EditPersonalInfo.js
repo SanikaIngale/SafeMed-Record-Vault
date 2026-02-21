@@ -58,7 +58,7 @@ const EditPersonalInfo = ({ navigation }) => {
 
     const apiUrl =
       Platform.OS === 'android'
-        ? 'http://10.164.220.89:5000'
+        ? 'http://10.215.134.89:5000'
         : 'http://localhost:5000';
 
     // Fetch patient basic info (patients table)
@@ -189,7 +189,7 @@ const EditPersonalInfo = ({ navigation }) => {
 
     setSaving(true);
     try {
-      const apiUrl = Platform.OS === 'android' ? 'http://10.164.220.89:5000' : 'http://localhost:5000';
+      const apiUrl = Platform.OS === 'android' ? 'http://10.215.134.89:5000' : 'http://localhost:5000';
       
       const updateData = {
         email: formData.email,

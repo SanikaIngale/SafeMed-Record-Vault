@@ -17,7 +17,7 @@ import {
 
 const API_URL =
   Platform.OS === 'android'
-    ? 'http://10.164.220.89:5000'
+    ? 'http://10.215.134.89:5000'
     : 'http://localhost:5000';
 
 const AllergiesConditions = ({ navigation }) => {

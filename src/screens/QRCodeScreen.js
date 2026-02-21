@@ -43,7 +43,7 @@ const QRCodeScreen = ({ navigation }) => {
 
       setPatientId(patId);
 
-      const apiUrl = Platform.OS === 'android' ? 'http://10.164.220.89:5000' : 'http://localhost:5000';
+      const apiUrl = Platform.OS === 'android' ? 'http://10.215.134.89:5000' : 'http://localhost:5000';
 
       // Always regenerate QR code to get latest patient data
       // This ensures the QR code updates when profile information changes

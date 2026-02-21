@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
-const { Pool } = require('pg');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
@@ -27,18 +27,20 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key_change_this_in
 const PORT = process.env.PORT || 5000;
 const HOST_IP = process.env.HOST_IP || '10.185.77.5';
 
-// Postgres pool
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+// Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL || '',
+  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+);
 
 async function connectToDatabase() {
   try {
-    await pool.query('SELECT 1');
-    console.log('Postgres connected');
-    console.log('Connection: ' + (process.env.DATABASE_URL || 'PGHOST...'));
+    const { data, error } = await supabase.from('users').select('id').limit(1);
+    if (error) throw error;
+    console.log('Supabase connected');
+    console.log('Connection: ' + (process.env.SUPABASE_URL || 'Not configured'));
   } catch (err) {
-    console.error('Postgres connection error:', err);
+    console.error('Supabase connection error:', err);
     process.exit(1);
   }
 }
@@ -60,18 +62,80 @@ const verifyToken = (req, res, next) => {
 
 // Utilities
 async function getUserByEmail(email) {
-  const res = await pool.query('SELECT * FROM users WHERE email = $1 LIMIT 1', [email.toLowerCase()]);
-  return res.rows[0];
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('email', email.toLowerCase())
+    .limit(1);
+  if (error) throw error;
+  return data?.[0];
 }
 
 async function getUserById(id) {
-  const res = await pool.query('SELECT * FROM users WHERE id = $1 LIMIT 1', [id]);
-  return res.rows[0];
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('id', id)
+    .limit(1);
+  if (error) throw error;
+  return data?.[0];
 }
 
 async function getPatient(patient_id) {
-  const res = await pool.query('SELECT * FROM patients WHERE patient_id = $1 LIMIT 1', [patient_id]);
-  return res.rows[0];
+  const { data, error } = await supabase
+    .from('patients')
+    .select('*')
+    .eq('patient_id', patient_id)
+    .limit(1);
+  if (error) throw error;
+  
+  const patient = data?.[0];
+  if (patient) {
+    // Parse JSON fields if they're strings
+    if (typeof patient.medications === 'string') {
+      try {
+        patient.medications = JSON.parse(patient.medications);
+      } catch (e) {
+        patient.medications = [];
+      }
+    }
+    if (typeof patient.vaccination_records === 'string') {
+      try {
+        patient.vaccination_records = JSON.parse(patient.vaccination_records);
+      } catch (e) {
+        patient.vaccination_records = [];
+      }
+    }
+    if (typeof patient.demographics === 'string') {
+      try {
+        patient.demographics = JSON.parse(patient.demographics);
+      } catch (e) {
+        patient.demographics = {};
+      }
+    }
+    if (typeof patient.allergies === 'string') {
+      try {
+        patient.allergies = JSON.parse(patient.allergies);
+      } catch (e) {
+        patient.allergies = [];
+      }
+    }
+    if (typeof patient.conditions === 'string') {
+      try {
+        patient.conditions = JSON.parse(patient.conditions);
+      } catch (e) {
+        patient.conditions = [];
+      }
+    }
+    if (typeof patient.emergency_contacts === 'string') {
+      try {
+        patient.emergency_contacts = JSON.parse(patient.emergency_contacts);
+      } catch (e) {
+        patient.emergency_contacts = [];
+      }
+    }
+  }
+  return patient;
 }
 
 // POST /api/signup
@@ -86,44 +150,71 @@ app.post('/api/signup', async (req, res) => {
     if (!mobileRegex.test(mobileNumber)) return res.status(400).json({ success: false, message: 'Mobile number must be 10 digits' });
     if (password.length < 6) return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
 
-    const client = await pool.connect();
-    try {
-      // Check for existing user
-      const existingRes = await client.query('SELECT * FROM users WHERE email = $1 OR mobilenumber = $2 LIMIT 1', [email.toLowerCase(), mobileNumber]);
-      if (existingRes.rows[0]) return res.status(409).json({ success: false, message: existingRes.rows[0].email === email.toLowerCase() ? 'Email already registered' : 'Mobile number already registered' });
-
-      // Generate new patient ID
-      const lastPatientRes = await client.query('SELECT patient_id FROM patients ORDER BY id DESC LIMIT 1');
-      let newPatientId = 'P0001';
-      if (lastPatientRes.rows[0] && lastPatientRes.rows[0].patient_id) {
-        const lp = lastPatientRes.rows[0].patient_id;
-        const lastId = parseInt(lp.substring(1)) || 0;
-        newPatientId = `P${String(lastId + 1).padStart(4, '0')}`;
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      const insertUser = await client.query(
-        `INSERT INTO users (patient_id, name, email, mobilenumber, password, isverified, createdat, logincount)
-         VALUES ($1,$2,$3,$4,$5,$6,NOW(),0) RETURNING id`,
-        [newPatientId, name, email.toLowerCase(), mobileNumber, hashedPassword, false]
-      );
-
-      await client.query(
-        `INSERT INTO patients (patient_id, name, medications, vaccination_records)
-         VALUES ($1,$2,$3,$4)`,
-        [newPatientId, name, JSON.stringify([]), JSON.stringify([])]
-      );
-
-      const newUserId = insertUser.rows[0].id;
-      const token = jwt.sign({ userId: newUserId, email: email.toLowerCase(), patientId: newPatientId }, JWT_SECRET, { expiresIn: '30d' });
-
-      console.log('New user registered: ' + email.toLowerCase() + ' | Patient ID: ' + newPatientId);
-
-      res.status(201).json({ success: true, message: 'Account created successfully', token, user: { id: newUserId, patient_id: newPatientId, name, email: email.toLowerCase(), mobileNumber, isVerified: false } });
-    } finally {
-      client.release();
+    // Check for existing user
+    const { data: existingUsers, error: checkError } = await supabase
+      .from('users')
+      .select('*')
+      .or(`email.eq.${email.toLowerCase()},mobilenumber.eq.${mobileNumber}`)
+      .limit(1);
+    
+    if (checkError) throw checkError;
+    if (existingUsers && existingUsers.length > 0) {
+      return res.status(409).json({ success: false, message: existingUsers[0].email === email.toLowerCase() ? 'Email already registered' : 'Mobile number already registered' });
     }
+
+    // Generate new patient ID
+    const { data: lastPatient, error: lastPatientError } = await supabase
+      .from('patients')
+      .select('patient_id')
+      .order('id', { ascending: false })
+      .limit(1);
+    
+    if (lastPatientError) throw lastPatientError;
+    
+    let newPatientId = 'P0001';
+    if (lastPatient && lastPatient.length > 0 && lastPatient[0].patient_id) {
+      const lp = lastPatient[0].patient_id;
+      const lastId = parseInt(lp.substring(1)) || 0;
+      newPatientId = `P${String(lastId + 1).padStart(4, '0')}`;
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Insert user
+    const { data: newUser, error: insertUserError } = await supabase
+      .from('users')
+      .insert([{
+        patient_id: newPatientId,
+        name,
+        email: email.toLowerCase(),
+        mobilenumber: mobileNumber,
+        password: hashedPassword,
+        isverified: false,
+        createdat: new Date().toISOString(),
+        logincount: 0
+      }])
+      .select('id');
+    
+    if (insertUserError) throw insertUserError;
+
+    // Insert patient
+    const { error: insertPatientError } = await supabase
+      .from('patients')
+      .insert([{
+        patient_id: newPatientId,
+        name,
+        medications: JSON.stringify([]),
+        vaccination_records: JSON.stringify([])
+      }]);
+    
+    if (insertPatientError) throw insertPatientError;
+
+    const newUserId = newUser[0].id;
+    const token = jwt.sign({ userId: newUserId, email: email.toLowerCase(), patientId: newPatientId }, JWT_SECRET, { expiresIn: '30d' });
+
+    console.log('New user registered: ' + email.toLowerCase() + ' | Patient ID: ' + newPatientId);
+
+    res.status(201).json({ success: true, message: 'Account created successfully', token, user: { id: newUserId, patient_id: newPatientId, name, email: email.toLowerCase(), mobileNumber, isVerified: false } });
   } catch (error) {
     console.error('Signup error:', error);
     res.status(500).json({ success: false, message: 'Server error during sign up', error: error.message });
@@ -137,26 +228,37 @@ app.post('/api/signin', async (req, res) => {
     const { email, password } = req.body;
     if (!email || !password) return res.status(400).json({ success: false, message: 'Email and password are required' });
 
-    const client = await pool.connect();
-    try {
-      const userRes = await client.query('SELECT * FROM users WHERE email = $1 LIMIT 1', [email.toLowerCase()]);
-      const user = userRes.rows[0];
-      if (!user) return res.status(404).json({ success: false, message: 'Account not found with this email' });
-      if (!user.password) return res.status(400).json({ success: false, message: 'Password not set for this account' });
+    const { data: users, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email.toLowerCase())
+      .limit(1);
+    
+    if (userError) throw userError;
+    
+    const user = users?.[0];
+    if (!user) return res.status(404).json({ success: false, message: 'Account not found with this email' });
+    if (!user.password) return res.status(400).json({ success: false, message: 'Password not set for this account' });
 
-      const isPasswordValid = await bcrypt.compare(password, user.password);
-      if (!isPasswordValid) return res.status(401).json({ success: false, message: 'Invalid email or password' });
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) return res.status(401).json({ success: false, message: 'Invalid email or password' });
 
-      const token = jwt.sign({ userId: user.id, email: user.email, patientId: user.patient_id }, JWT_SECRET, { expiresIn: '30d' });
+    const token = jwt.sign({ userId: user.id, email: user.email, patientId: user.patient_id }, JWT_SECRET, { expiresIn: '30d' });
 
-      await client.query('UPDATE users SET lastlogin = NOW(), logincount = COALESCE(logincount,0) + 1 WHERE id = $1', [user.id]);
+    // Update last login and login count
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        lastlogin: new Date().toISOString(),
+        logincount: (user.logincount || 0) + 1
+      })
+      .eq('id', user.id);
+    
+    if (updateError) throw updateError;
 
-      console.log('Login successful for: ' + user.email);
+    console.log('Login successful for: ' + user.email);
 
-      res.json({ success: true, message: 'Login successful', token, user: { id: user.id, patient_id: user.patient_id, name: user.name, email: user.email, mobileNumber: user.mobilenumber, isVerified: user.isverified, createdAt: user.createdat, requiresPasswordChange: user.requirespasswordchange || false } });
-    } finally {
-      client.release();
-    }
+    res.json({ success: true, message: 'Login successful', token, user: { id: user.id, patient_id: user.patient_id, name: user.name, email: user.email, mobileNumber: user.mobilenumber, isVerified: user.isverified, createdAt: user.createdat, requiresPasswordChange: user.requirespasswordchange || false } });
   } catch (error) {
     console.error('Signin error:', error);
     res.status(500).json({ success: false, message: 'Server error during sign in', error: error.message });
@@ -215,16 +317,38 @@ app.post('/api/medications/:patientId', async (req, res) => {
     const { patientId } = req.params;
     const { name, purpose, dosage, frequency, time, startDate } = req.body;
     console.log('Adding medication for patient: ' + patientId);
-    const client = await pool.connect();
-    try {
-      const patientRes = await client.query('SELECT medications FROM patients WHERE patient_id = $1 LIMIT 1', [patientId]);
-      if (!patientRes.rows[0]) return res.status(404).json({ success: false, message: 'Patient not found' });
-      const meds = patientRes.rows[0].medications || [];
-      const newMedication = { id: Date.now(), name, reason: purpose, dosage, frequency, time: time || '', start_date: startDate || '' };
-      meds.push(newMedication);
-      await client.query('UPDATE patients SET medications = $1 WHERE patient_id = $2', [JSON.stringify(meds), patientId]);
-      res.json({ success: true, message: 'Medication added successfully', medication: { id: newMedication.id, name: newMedication.name, purpose: newMedication.reason, dosage: newMedication.dosage, frequency: newMedication.frequency, time: newMedication.time, startDate: newMedication.start_date } });
-    } finally { client.release(); }
+    
+    const { data: patients, error: patientError } = await supabase
+      .from('patients')
+      .select('medications')
+      .eq('patient_id', patientId)
+      .limit(1);
+    
+    if (patientError) throw patientError;
+    if (!patients || patients.length === 0) return res.status(404).json({ success: false, message: 'Patient not found' });
+    
+    // Parse medications if it's a string
+    let meds = patients[0].medications;
+    if (typeof meds === 'string') {
+      try {
+        meds = JSON.parse(meds || '[]');
+      } catch (e) {
+        meds = [];
+      }
+    }
+    if (!Array.isArray(meds)) meds = [];
+    
+    const newMedication = { id: Date.now(), name, reason: purpose, dosage, frequency, time: time || '', start_date: startDate || '' };
+    meds.push(newMedication);
+    
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ medications: JSON.stringify(meds) })
+      .eq('patient_id', patientId);
+    
+    if (updateError) throw updateError;
+    
+    res.json({ success: true, message: 'Medication added successfully', medication: { id: newMedication.id, name: newMedication.name, purpose: newMedication.reason, dosage: newMedication.dosage, frequency: newMedication.frequency, time: newMedication.time, startDate: newMedication.start_date } });
   } catch (error) {
     console.error('Error adding medication:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -237,17 +361,40 @@ app.put('/api/medications/:patientId/:medicationId', async (req, res) => {
     const { patientId, medicationId } = req.params;
     const { name, purpose, dosage, frequency, time, startDate } = req.body;
     console.log('Updating medication: ' + medicationId + ' for patient: ' + patientId);
-    const client = await pool.connect();
-    try {
-      const patientRes = await client.query('SELECT medications FROM patients WHERE patient_id = $1 LIMIT 1', [patientId]);
-      if (!patientRes.rows[0]) return res.status(404).json({ success: false, message: 'Patient not found' });
-      const meds = patientRes.rows[0].medications || [];
-      const idx = meds.findIndex(m => String(m.id) === String(medicationId));
-      if (idx === -1) return res.status(404).json({ success: false, message: 'Medication not found' });
-      meds[idx] = { ...meds[idx], name, reason: purpose, dosage, frequency, time: time || '', start_date: startDate || '' };
-      await client.query('UPDATE patients SET medications = $1 WHERE patient_id = $2', [JSON.stringify(meds), patientId]);
-      res.json({ success: true, message: 'Medication updated successfully' });
-    } finally { client.release(); }
+    
+    const { data: patients, error: patientError } = await supabase
+      .from('patients')
+      .select('medications')
+      .eq('patient_id', patientId)
+      .limit(1);
+    
+    if (patientError) throw patientError;
+    if (!patients || patients.length === 0) return res.status(404).json({ success: false, message: 'Patient not found' });
+    
+    // Parse medications if it's a string
+    let meds = patients[0].medications;
+    if (typeof meds === 'string') {
+      try {
+        meds = JSON.parse(meds || '[]');
+      } catch (e) {
+        meds = [];
+      }
+    }
+    if (!Array.isArray(meds)) meds = [];
+    
+    const idx = meds.findIndex(m => String(m.id) === String(medicationId));
+    if (idx === -1) return res.status(404).json({ success: false, message: 'Medication not found' });
+    
+    meds[idx] = { ...meds[idx], name, reason: purpose, dosage, frequency, time: time || '', start_date: startDate || '' };
+    
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ medications: JSON.stringify(meds) })
+      .eq('patient_id', patientId);
+    
+    if (updateError) throw updateError;
+    
+    res.json({ success: true, message: 'Medication updated successfully' });
   } catch (error) {
     console.error('Error updating medication:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -259,14 +406,37 @@ app.delete('/api/medications/:patientId/:medicationId', async (req, res) => {
   try {
     const { patientId, medicationId } = req.params;
     console.log('Deleting medication: ' + medicationId + ' for patient: ' + patientId);
-    const client = await pool.connect();
-    try {
-      const patientRes = await client.query('SELECT medications FROM patients WHERE patient_id = $1 LIMIT 1', [patientId]);
-      if (!patientRes.rows[0]) return res.status(404).json({ success: false, message: 'Patient not found' });
-      const meds = (patientRes.rows[0].medications || []).filter(m => String(m.id) !== String(medicationId));
-      await client.query('UPDATE patients SET medications = $1 WHERE patient_id = $2', [JSON.stringify(meds), patientId]);
-      res.json({ success: true, message: 'Medication deleted successfully' });
-    } finally { client.release(); }
+    
+    const { data: patients, error: patientError } = await supabase
+      .from('patients')
+      .select('medications')
+      .eq('patient_id', patientId)
+      .limit(1);
+    
+    if (patientError) throw patientError;
+    if (!patients || patients.length === 0) return res.status(404).json({ success: false, message: 'Patient not found' });
+    
+    // Parse medications if it's a string
+    let meds = patients[0].medications;
+    if (typeof meds === 'string') {
+      try {
+        meds = JSON.parse(meds || '[]');
+      } catch (e) {
+        meds = [];
+      }
+    }
+    if (!Array.isArray(meds)) meds = [];
+    
+    const filtered = meds.filter(m => String(m.id) !== String(medicationId));
+    
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ medications: JSON.stringify(filtered) })
+      .eq('patient_id', patientId);
+    
+    if (updateError) throw updateError;
+    
+    res.json({ success: true, message: 'Medication deleted successfully' });
   } catch (error) {
     console.error('Error deleting medication:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -297,16 +467,38 @@ app.post('/api/vaccinations/:patientId', async (req, res) => {
     const { patientId } = req.params;
     const { name, date, location, doseNumber, nextDue } = req.body;
     console.log('Adding vaccination for patient: ' + patientId);
-    const client = await pool.connect();
-    try {
-      const patientRes = await client.query('SELECT vaccination_records FROM patients WHERE patient_id = $1 LIMIT 1', [patientId]);
-      if (!patientRes.rows[0]) return res.status(404).json({ success: false, message: 'Patient not found' });
-      const vacs = patientRes.rows[0].vaccination_records || [];
-      const newVaccination = { id: Date.now(), name, date, hospital: location || '', dose: doseNumber || '', next_due: nextDue || 'N/A' };
-      vacs.push(newVaccination);
-      await client.query('UPDATE patients SET vaccination_records = $1 WHERE patient_id = $2', [JSON.stringify(vacs), patientId]);
-      res.json({ success: true, message: 'Vaccination added successfully', vaccination: { id: newVaccination.id, name: newVaccination.name, date: newVaccination.date, location: newVaccination.hospital, doseNumber: newVaccination.dose, nextDue: newVaccination.next_due } });
-    } finally { client.release(); }
+    
+    const { data: patients, error: patientError } = await supabase
+      .from('patients')
+      .select('vaccination_records')
+      .eq('patient_id', patientId)
+      .limit(1);
+    
+    if (patientError) throw patientError;
+    if (!patients || patients.length === 0) return res.status(404).json({ success: false, message: 'Patient not found' });
+    
+    // Parse vaccination_records if it's a string
+    let vacs = patients[0].vaccination_records;
+    if (typeof vacs === 'string') {
+      try {
+        vacs = JSON.parse(vacs || '[]');
+      } catch (e) {
+        vacs = [];
+      }
+    }
+    if (!Array.isArray(vacs)) vacs = [];
+    
+    const newVaccination = { id: Date.now(), name, date, hospital: location || '', dose: doseNumber || '', next_due: nextDue || 'N/A' };
+    vacs.push(newVaccination);
+    
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ vaccination_records: JSON.stringify(vacs) })
+      .eq('patient_id', patientId);
+    
+    if (updateError) throw updateError;
+    
+    res.json({ success: true, message: 'Vaccination added successfully', vaccination: { id: newVaccination.id, name: newVaccination.name, date: newVaccination.date, location: newVaccination.hospital, doseNumber: newVaccination.dose, nextDue: newVaccination.next_due } });
   } catch (error) {
     console.error('Error adding vaccination:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -319,17 +511,40 @@ app.put('/api/vaccinations/:patientId/:vaccinationId', async (req, res) => {
     const { patientId, vaccinationId } = req.params;
     const { name, date, location, doseNumber, nextDue } = req.body;
     console.log('Updating vaccination: ' + vaccinationId + ' for patient: ' + patientId);
-    const client = await pool.connect();
-    try {
-      const patientRes = await client.query('SELECT vaccination_records FROM patients WHERE patient_id = $1 LIMIT 1', [patientId]);
-      if (!patientRes.rows[0]) return res.status(404).json({ success: false, message: 'Patient not found' });
-      const vacs = patientRes.rows[0].vaccination_records || [];
-      const idx = vacs.findIndex(v => String(v.id) === String(vaccinationId));
-      if (idx === -1) return res.status(404).json({ success: false, message: 'Vaccination not found' });
-      vacs[idx] = { ...vacs[idx], name, date, hospital: location || '', dose: doseNumber || '', next_due: nextDue || 'N/A' };
-      await client.query('UPDATE patients SET vaccination_records = $1 WHERE patient_id = $2', [JSON.stringify(vacs), patientId]);
-      res.json({ success: true, message: 'Vaccination updated successfully' });
-    } finally { client.release(); }
+    
+    const { data: patients, error: patientError } = await supabase
+      .from('patients')
+      .select('vaccination_records')
+      .eq('patient_id', patientId)
+      .limit(1);
+    
+    if (patientError) throw patientError;
+    if (!patients || patients.length === 0) return res.status(404).json({ success: false, message: 'Patient not found' });
+    
+    // Parse vaccination_records if it's a string
+    let vacs = patients[0].vaccination_records;
+    if (typeof vacs === 'string') {
+      try {
+        vacs = JSON.parse(vacs || '[]');
+      } catch (e) {
+        vacs = [];
+      }
+    }
+    if (!Array.isArray(vacs)) vacs = [];
+    
+    const idx = vacs.findIndex(v => String(v.id) === String(vaccinationId));
+    if (idx === -1) return res.status(404).json({ success: false, message: 'Vaccination not found' });
+    
+    vacs[idx] = { ...vacs[idx], name, date, hospital: location || '', dose: doseNumber || '', next_due: nextDue || 'N/A' };
+    
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ vaccination_records: JSON.stringify(vacs) })
+      .eq('patient_id', patientId);
+    
+    if (updateError) throw updateError;
+    
+    res.json({ success: true, message: 'Vaccination updated successfully' });
   } catch (error) {
     console.error('Error updating vaccination:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -341,14 +556,37 @@ app.delete('/api/vaccinations/:patientId/:vaccinationId', async (req, res) => {
   try {
     const { patientId, vaccinationId } = req.params;
     console.log('Deleting vaccination: ' + vaccinationId + ' for patient: ' + patientId);
-    const client = await pool.connect();
-    try {
-      const patientRes = await client.query('SELECT vaccination_records FROM patients WHERE patient_id = $1 LIMIT 1', [patientId]);
-      if (!patientRes.rows[0]) return res.status(404).json({ success: false, message: 'Patient not found' });
-      const vacs = (patientRes.rows[0].vaccination_records || []).filter(v => String(v.id) !== String(vaccinationId));
-      await client.query('UPDATE patients SET vaccination_records = $1 WHERE patient_id = $2', [JSON.stringify(vacs), patientId]);
-      res.json({ success: true, message: 'Vaccination deleted successfully' });
-    } finally { client.release(); }
+    
+    const { data: patients, error: patientError } = await supabase
+      .from('patients')
+      .select('vaccination_records')
+      .eq('patient_id', patientId)
+      .limit(1);
+    
+    if (patientError) throw patientError;
+    if (!patients || patients.length === 0) return res.status(404).json({ success: false, message: 'Patient not found' });
+    
+    // Parse vaccination_records if it's a string
+    let vacs = patients[0].vaccination_records;
+    if (typeof vacs === 'string') {
+      try {
+        vacs = JSON.parse(vacs || '[]');
+      } catch (e) {
+        vacs = [];
+      }
+    }
+    if (!Array.isArray(vacs)) vacs = [];
+    
+    const filteredVacs = vacs.filter(v => String(v.id) !== String(vaccinationId));
+    
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ vaccination_records: JSON.stringify(filteredVacs) })
+      .eq('patient_id', patientId);
+    
+    if (updateError) throw updateError;
+    
+    res.json({ success: true, message: 'Vaccination deleted successfully' });
   } catch (error) {
     console.error('Error deleting vaccination:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -379,15 +617,17 @@ app.put('/api/user/profile', verifyToken, async (req, res) => {
       updateFields.mobilenumber = mobileNumber;
     }
     if (Object.keys(updateFields).length === 0) return res.status(400).json({ success: false, message: 'No fields to update' });
-    const setClauses = [];
-    const values = [];
-    let i = 1;
-    for (const k in updateFields) { setClauses.push(`${k} = $${i}`); values.push(updateFields[k]); i++; }
-    values.push(req.userId);
-    const query = `UPDATE users SET ${setClauses.join(', ')} WHERE id = $${i} RETURNING id, patient_id, name, email, mobilenumber, isverified, createdat`;
-    const updated = await pool.query(query, values);
-    if (!updated.rows[0]) return res.status(404).json({ success: false, message: 'User not found' });
-    res.json({ success: true, message: 'Profile updated successfully', user: updated.rows[0] });
+    
+    const { data: updated, error: updateError } = await supabase
+      .from('users')
+      .update(updateFields)
+      .eq('id', req.userId)
+      .select('id, patient_id, name, email, mobilenumber, isverified, createdat');
+    
+    if (updateError) throw updateError;
+    if (!updated || updated.length === 0) return res.status(404).json({ success: false, message: 'User not found' });
+    
+    res.json({ success: true, message: 'Profile updated successfully', user: updated[0] });
   } catch (error) {
     console.error('Profile update error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
@@ -404,60 +644,56 @@ app.post('/api/patients/demographics', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Missing required fields' });
     }
 
-    const client = await pool.connect();
-    try {
-      // Get patient_id from users table using email
-      const userRes = await client.query('SELECT patient_id FROM users WHERE email = $1 LIMIT 1', [email.toLowerCase()]);
-      if (!userRes.rows[0]) {
-        return res.status(404).json({ success: false, message: 'User not found' });
-      }
-
-      const patientId = userRes.rows[0].patient_id;
-
-      // Update patient demographics and related fields
-      const demographicsData = {
-        dob,
-        gender,
-        bloodType,
-        height: parseFloat(height),
-        weight: parseFloat(weight),
-        chronicConditions: chronicConditions ? (typeof chronicConditions === 'string' ? chronicConditions.split(',').map(c => c.trim()) : chronicConditions) : []
-      };
-
-      const updateRes = await client.query(
-        `UPDATE patients 
-         SET demographics = $1, 
-             name = $2,
-             allergies = $3,
-             emergency_contacts = $4
-         WHERE patient_id = $5 
-         RETURNING patient_id, name, demographics, allergies, emergency_contacts`,
-        [
-          JSON.stringify(demographicsData),
-          name,
-          allergies ? JSON.stringify(allergies) : JSON.stringify([]),
-          JSON.stringify([]),
-          patientId
-        ]
-      );
-
-      if (!updateRes.rows[0]) {
-        return res.status(404).json({ success: false, message: 'Patient record not found' });
-      }
-
-      console.log('Demographics saved for patient: ' + patientId);
-
-      res.json({
-        success: true,
-        message: 'Demographics saved successfully',
-        patient_id: patientId,
-        demographics: demographicsData,
-        allergies: updateRes.rows[0].allergies || [],
-        emergency_contacts: updateRes.rows[0].emergency_contacts || []
-      });
-    } finally {
-      client.release();
+    // Get patient_id from users table using email
+    const { data: users, error: userError } = await supabase
+      .from('users')
+      .select('patient_id')
+      .eq('email', email.toLowerCase())
+      .limit(1);
+    
+    if (userError) throw userError;
+    if (!users || users.length === 0) {
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
+
+    const patientId = users[0].patient_id;
+
+    // Update patient demographics and related fields
+    const demographicsData = {
+      dob,
+      gender,
+      bloodType,
+      height: parseFloat(height),
+      weight: parseFloat(weight),
+      chronicConditions: chronicConditions ? (typeof chronicConditions === 'string' ? chronicConditions.split(',').map(c => c.trim()) : chronicConditions) : []
+    };
+
+    const { data: updated, error: updateError } = await supabase
+      .from('patients')
+      .update({
+        demographics: JSON.stringify(demographicsData),
+        name,
+        allergies: allergies ? JSON.stringify(allergies) : JSON.stringify([]),
+        emergency_contacts: JSON.stringify([])
+      })
+      .eq('patient_id', patientId)
+      .select('patient_id, name, demographics, allergies, emergency_contacts');
+
+    if (updateError) throw updateError;
+    if (!updated || updated.length === 0) {
+      return res.status(404).json({ success: false, message: 'Patient record not found' });
+    }
+
+    console.log('Demographics saved for patient: ' + patientId);
+
+    res.json({
+      success: true,
+      message: 'Demographics saved successfully',
+      patient_id: patientId,
+      demographics: demographicsData,
+      allergies: updated[0].allergies || [],
+      emergency_contacts: updated[0].emergency_contacts || []
+    });
   } catch (error) {
     console.error('Error saving demographics:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -478,67 +714,59 @@ app.post('/api/patient/demographics', async (req, res) => {
       });
     }
 
-    const client = await pool.connect();
+    // Get patient_id using email (email exists ONLY in users table)
+    const { data: users, error: userError } = await supabase
+      .from('users')
+      .select('patient_id')
+      .eq('email', email.toLowerCase())
+      .limit(1);
 
-    try {
-      // Get patient_id using email (email exists ONLY in users table)
-      const userRes = await client.query(
-        'SELECT patient_id FROM users WHERE email = $1 LIMIT 1',
-        [email.toLowerCase()]
-      );
-
-      if (userRes.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      const patientId = userRes.rows[0].patient_id;
-
-      // Build demographics JSON (only allowed fields)
-      const demographicsData = {
-        dob,
-        gender,
-        bloodType,
-        height: Number(height),
-        weight: Number(weight)
-      };
-
-      // Update patients table (NO email column here)
-      const updateRes = await client.query(
-        `UPDATE patients
-         SET name = $1,
-             demographics = $2
-         WHERE patient_id = $3
-         RETURNING patient_id, name, demographics`,
-        [
-          name,
-          JSON.stringify(demographicsData),
-          patientId
-        ]
-      );
-
-      if (updateRes.rows.length === 0) {
-        return res.status(404).json({
-          success: false,
-          message: 'Patient record not found'
-        });
-      }
-
-      console.log('Demographics saved for patient:', patientId);
-
-      res.json({
-        success: true,
-        message: 'Demographics saved successfully',
-        patient_id: updateRes.rows[0].patient_id,
-        name: updateRes.rows[0].name,
-        demographics: updateRes.rows[0].demographics
+    if (userError) throw userError;
+    if (!users || users.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
       });
-
-    } finally {
-      client.release();
     }
+
+    const patientId = users[0].patient_id;
+
+    // Build demographics JSON (only allowed fields)
+    const demographicsData = {
+      dob,
+      gender,
+      bloodType,
+      height: Number(height),
+      weight: Number(weight)
+    };
+
+    // Update patients table (NO email column here)
+    const { data: updated, error: updateError } = await supabase
+      .from('patients')
+      .update({
+        name,
+        demographics: JSON.stringify(demographicsData)
+      })
+      .eq('patient_id', patientId)
+      .select('patient_id, name, demographics');
+
+    if (updateError) throw updateError;
+    if (!updated || updated.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Patient record not found'
+      });
+    }
+
+    console.log('Demographics saved for patient:', patientId);
+
+    res.json({
+      success: true,
+      message: 'Demographics saved successfully',
+      patient_id: updated[0].patient_id,
+      name: updated[0].name,
+      demographics: updated[0].demographics
+    });
 
   } catch (error) {
     console.error('Error saving demographics:', error);
@@ -556,27 +784,31 @@ app.get('/api/patients/:patientId/demographics', async (req, res) => {
   try {
     const { patientId } = req.params;
     console.log('Fetching demographics for patient: ' + patientId);
-    const client = await pool.connect();
-    try {
-      const patientRes = await client.query(
-        'SELECT demographics, allergies, emergency_contacts FROM patients WHERE patient_id = $1 LIMIT 1',
-        [patientId]
-      );
+    
+    const { data: patients, error: patientError } = await supabase
+      .from('patients')
+      .select('demographics, allergies, emergency_contacts')
+      .eq('patient_id', patientId)
+      .limit(1);
 
-      if (!patientRes.rows[0]) {
-        return res.status(404).json({ success: false, message: 'Patient not found' });
-      }
-
-      const patient = patientRes.rows[0];
-      res.json({
-        success: true,
-        demographics: patient.demographics || {},
-        allergies: patient.allergies || [],
-        emergency_contacts: patient.emergency_contacts || []
-      });
-    } finally {
-      client.release();
+    if (patientError) throw patientError;
+    if (!patients || patients.length === 0) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
     }
+
+    const patient = patients[0];
+    
+    // Parse JSON fields if they're strings
+    const demographics = typeof patient.demographics === 'string' ? JSON.parse(patient.demographics || '{}') : (patient.demographics || {});
+    const allergies = typeof patient.allergies === 'string' ? JSON.parse(patient.allergies || '[]') : (patient.allergies || []);
+    const emergency_contacts = typeof patient.emergency_contacts === 'string' ? JSON.parse(patient.emergency_contacts || '[]') : (patient.emergency_contacts || []);
+    
+    res.json({
+      success: true,
+      demographics,
+      allergies,
+      emergency_contacts
+    });
   } catch (error) {
     console.error('Error fetching demographics:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -590,51 +822,68 @@ app.put('/api/patients/:patientId/demographics', async (req, res) => {
     const { dob, gender, bloodType, height, weight, chronicConditions, allergies, emergency_contacts } = req.body;
     console.log('Updating demographics for patient: ' + patientId);
     
-    const client = await pool.connect();
-    try {
-      const demographicsData = {
-        dob: dob || undefined,
-        gender: gender || undefined,
-        bloodType: bloodType || undefined,
-        height: height ? parseFloat(height) : undefined,
-        weight: weight ? parseFloat(weight) : undefined,
-        chronicConditions: chronicConditions ? (typeof chronicConditions === 'string' ? chronicConditions.split(',').map(c => c.trim()) : chronicConditions) : undefined
-      };
+    const demographicsData = {
+      dob: dob || undefined,
+      gender: gender || undefined,
+      bloodType: bloodType || undefined,
+      height: height ? parseFloat(height) : undefined,
+      weight: weight ? parseFloat(weight) : undefined,
+      chronicConditions: chronicConditions ? (typeof chronicConditions === 'string' ? chronicConditions.split(',').map(c => c.trim()) : chronicConditions) : undefined
+    };
 
-      // Remove undefined values
-      Object.keys(demographicsData).forEach(key => demographicsData[key] === undefined && delete demographicsData[key]);
+    // Remove undefined values
+    Object.keys(demographicsData).forEach(key => demographicsData[key] === undefined && delete demographicsData[key]);
 
-      const updateRes = await client.query(
-        `UPDATE patients 
-         SET demographics = jsonb_set(COALESCE(demographics, '{}'::jsonb), '{}', $1::jsonb),
-             allergies = $2,
-             emergency_contacts = $3
-         WHERE patient_id = $4 
-         RETURNING demographics, allergies, emergency_contacts`,
-        [
-          JSON.stringify(demographicsData),
-          allergies ? JSON.stringify(allergies) : JSON.stringify([]),
-          emergency_contacts ? JSON.stringify(emergency_contacts) : JSON.stringify([]),
-          patientId
-        ]
-      );
-
-      if (!updateRes.rows[0]) {
-        return res.status(404).json({ success: false, message: 'Patient not found' });
-      }
-
-      console.log('Demographics updated for patient: ' + patientId);
-
-      res.json({
-        success: true,
-        message: 'Demographics updated successfully',
-        demographics: updateRes.rows[0].demographics || {},
-        allergies: updateRes.rows[0].allergies || [],
-        emergency_contacts: updateRes.rows[0].emergency_contacts || []
-      });
-    } finally {
-      client.release();
+    const { data: patients, error: getError } = await supabase
+      .from('patients')
+      .select('demographics')
+      .eq('patient_id', patientId)
+      .limit(1);
+    
+    if (getError) throw getError;
+    if (!patients || patients.length === 0) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
     }
+
+    // Merge with existing demographics, handling string parsing
+    let existingDemographics = {};
+    try {
+      const raw = patients[0].demographics;
+      existingDemographics = typeof raw === 'string' ? JSON.parse(raw || '{}') : (raw || {});
+    } catch (e) {
+      existingDemographics = {};
+    }
+    const mergedDemographics = { ...existingDemographics, ...demographicsData };
+
+    const { data: updated, error: updateError } = await supabase
+      .from('patients')
+      .update({
+        demographics: JSON.stringify(mergedDemographics),
+        allergies: allergies ? JSON.stringify(allergies) : JSON.stringify([]),
+        emergency_contacts: emergency_contacts ? JSON.stringify(emergency_contacts) : JSON.stringify([])
+      })
+      .eq('patient_id', patientId)
+      .select('demographics, allergies, emergency_contacts');
+
+    if (updateError) throw updateError;
+    if (!updated || updated.length === 0) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+    }
+
+    console.log('Demographics updated for patient: ' + patientId);
+
+    // Parse response
+    const demographics = typeof updated[0].demographics === 'string' ? JSON.parse(updated[0].demographics || '{}') : (updated[0].demographics || {});
+    const allergiesResp = typeof updated[0].allergies === 'string' ? JSON.parse(updated[0].allergies || '[]') : (updated[0].allergies || []);
+    const emergency_contactsResp = typeof updated[0].emergency_contacts === 'string' ? JSON.parse(updated[0].emergency_contacts || '[]') : (updated[0].emergency_contacts || []);
+
+    res.json({
+      success: true,
+      message: 'Demographics updated successfully',
+      demographics,
+      allergies: allergiesResp,
+      emergency_contacts: emergency_contactsResp
+    });
   } catch (error) {
     console.error('Error updating demographics:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -645,71 +894,158 @@ app.put('/api/patients/:patientId/demographics', async (req, res) => {
 // GET allergies
 app.get('/api/patients/:patientId/allergies', async (req, res) => {
   const { patientId } = req.params;
-  const result = await pool.query(
-    'SELECT allergies FROM patients WHERE patient_id = $1',
-    [patientId]
-  );
-  res.json({ success: true, allergies: result.rows[0]?.allergies || [] });
+  const { data: result, error } = await supabase
+    .from('patients')
+    .select('allergies')
+    .eq('patient_id', patientId)
+    .limit(1);
+  
+  if (error) {
+    console.error('Error fetching allergies:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+  const allergies = result?.[0]?.allergies;
+  const parsed = typeof allergies === 'string' ? JSON.parse(allergies || '[]') : (allergies || []);
+  res.json({ success: true, allergies: parsed });
 });
 
 // POST allergies
 app.post('/api/patients/:patientId/allergies', async (req, res) => {
-  const { patientId } = req.params;
-  const { allergies } = req.body;
+  try {
+    const { patientId } = req.params;
+    const { allergies } = req.body;
+    console.log('Updating allergies for patient: ' + patientId);
 
-  await pool.query(
-    'UPDATE patients SET allergies = $1 WHERE patient_id = $2',
-    [JSON.stringify(allergies || []), patientId]
-  );
+    // Validate input
+    let allergiesToSave = allergies;
+    if (typeof allergiesToSave === 'string') {
+      try {
+        allergiesToSave = JSON.parse(allergiesToSave || '[]');
+      } catch (e) {
+        allergiesToSave = [];
+      }
+    }
+    if (!Array.isArray(allergiesToSave)) allergiesToSave = [];
 
-  res.json({ success: true });
+    const { error } = await supabase
+      .from('patients')
+      .update({ allergies: JSON.stringify(allergiesToSave) })
+      .eq('patient_id', patientId);
+    
+    if (error) {
+      console.error('Error updating allergies:', error);
+      return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error in allergies endpoint:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
 });
 
 // GET conditions
 app.get('/api/patients/:patientId/conditions', async (req, res) => {
   const { patientId } = req.params;
-  const result = await pool.query(
-    'SELECT conditions FROM patients WHERE patient_id = $1',
-    [patientId]
-  );
-  res.json({ success: true, conditions: result.rows[0]?.conditions || [] });
+  const { data: result, error } = await supabase
+    .from('patients')
+    .select('conditions')
+    .eq('patient_id', patientId)
+    .limit(1);
+  
+  if (error) {
+    console.error('Error fetching conditions:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+  const conditions = result?.[0]?.conditions;
+  const parsed = typeof conditions === 'string' ? JSON.parse(conditions || '[]') : (conditions || []);
+  res.json({ success: true, conditions: parsed });
 });
 
 // POST conditions
 app.post('/api/patients/:patientId/conditions', async (req, res) => {
-  const { patientId } = req.params;
-  const { conditions } = req.body;
+  try {
+    const { patientId } = req.params;
+    const { conditions } = req.body;
+    console.log('Updating conditions for patient: ' + patientId);
 
-  await pool.query(
-    'UPDATE patients SET conditions = $1 WHERE patient_id = $2',
-    [JSON.stringify(conditions || []), patientId]
-  );
+    // Validate input
+    let conditionsToSave = conditions;
+    if (typeof conditionsToSave === 'string') {
+      try {
+        conditionsToSave = JSON.parse(conditionsToSave || '[]');
+      } catch (e) {
+        conditionsToSave = [];
+      }
+    }
+    if (!Array.isArray(conditionsToSave)) conditionsToSave = [];
 
-  res.json({ success: true });
+    const { error } = await supabase
+      .from('patients')
+      .update({ conditions: JSON.stringify(conditionsToSave) })
+      .eq('patient_id', patientId);
+    
+    if (error) {
+      console.error('Error updating conditions:', error);
+      return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error in conditions endpoint:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
 });
 
 
 // GET emergency contacts
 app.get('/api/patients/:patientId/emergency-contacts', async (req, res) => {
   const { patientId } = req.params;
-  const result = await pool.query(
-    'SELECT emergency_contacts FROM patients WHERE patient_id = $1',
-    [patientId]
-  );
-  res.json({ success: true, emergency_contacts: result.rows[0]?.emergency_contacts || [] });
+  const { data: result, error } = await supabase
+    .from('patients')
+    .select('emergency_contacts')
+    .eq('patient_id', patientId)
+    .limit(1);
+  
+  if (error) {
+    console.error('Error fetching emergency contacts:', error);
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+  const emergency_contacts = result?.[0]?.emergency_contacts;
+  const parsed = typeof emergency_contacts === 'string' ? JSON.parse(emergency_contacts || '[]') : (emergency_contacts || []);
+  res.json({ success: true, emergency_contacts: parsed });
 });
 
 // POST emergency contacts
 app.post('/api/patients/:patientId/emergency-contacts', async (req, res) => {
-  const { patientId } = req.params;
-  const { emergency_contacts } = req.body;
+  try {
+    const { patientId } = req.params;
+    const { emergency_contacts } = req.body;
+    console.log('Updating emergency contacts for patient: ' + patientId);
 
-  await pool.query(
-    'UPDATE patients SET emergency_contacts = $1 WHERE patient_id = $2',
-    [JSON.stringify(emergency_contacts || []), patientId]
-  );
+    // Validate input
+    let contactsToSave = emergency_contacts;
+    if (typeof contactsToSave === 'string') {
+      try {
+        contactsToSave = JSON.parse(contactsToSave || '[]');
+      } catch (e) {
+        contactsToSave = [];
+      }
+    }
+    if (!Array.isArray(contactsToSave)) contactsToSave = [];
 
-  res.json({ success: true });
+    const { error } = await supabase
+      .from('patients')
+      .update({ emergency_contacts: JSON.stringify(contactsToSave) })
+      .eq('patient_id', patientId);
+    
+    if (error) {
+      console.error('Error updating emergency contacts:', error);
+      return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error in emergency contacts endpoint:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
 });
 
 // ============ QR CODE ENDPOINTS ============
@@ -720,68 +1056,101 @@ app.post('/api/qr-codes/:patientId', async (req, res) => {
     const { patientId } = req.params;
     console.log('Generating QR code for patient: ' + patientId);
 
-    const client = await pool.connect();
-    try {
-      // Fetch patient data
-      const patientRes = await client.query(
-        'SELECT * FROM patients WHERE patient_id = $1 LIMIT 1',
-        [patientId]
-      );
-
-      if (!patientRes.rows[0]) {
-        return res.status(404).json({ success: false, message: 'Patient not found' });
-      }
-
-      const patient = patientRes.rows[0];
-      const demographics = patient.demographics || {};
-      const emergencyContacts = patient.emergency_contacts || [];
-
-      // Build QR code data with patient information
-      const qrData = {
-        patient_id: patientId,
-        name: patient.name,
-        dob: demographics.dob || null,
-        gender: demographics.gender || null,
-        blood_group: demographics.bloodType || null,
-        height: demographics.height || null,
-        weight: demographics.weight || null,
-        allergies: patient.allergies || [],
-        conditions: patient.conditions || [],
-        emergency_contact: emergencyContacts.length > 0 ? emergencyContacts[0].phone || emergencyContacts[0].number : null,
-        generated_at: new Date().toISOString()
-      };
-
-      // Check if QR code already exists for this patient
-      const existingQR = await client.query(
-        'SELECT id FROM qr_codes WHERE patient_id = $1',
-        [patientId]
-      );
-
-      if (existingQR.rows[0]) {
-        // Update existing QR code
-        await client.query(
-          'UPDATE qr_codes SET qr_data = $1, updated_at = NOW() WHERE patient_id = $2',
-          [JSON.stringify(qrData), patientId]
-        );
-      } else {
-        // Insert new QR code
-        await client.query(
-          'INSERT INTO qr_codes (patient_id, qr_data) VALUES ($1, $2)',
-          [patientId, JSON.stringify(qrData)]
-        );
-      }
-
-      console.log('QR code generated for patient: ' + patientId);
-
-      res.json({
-        success: true,
-        message: 'QR code generated successfully',
-        patient_id: patientId,
-        qr_data: qrData
-      });
-    } finally {
-      client.release();
+    // Fetch patient data using getPatient to ensure proper parsing
+    const patient = await getPatient(patientId);
+    if (!patient) {
+      return res.status(404).json({ success: false, message: 'Patient not found' });
     }
+
+    // Parse demographics if it's a string
+    let demographics = patient.demographics;
+    if (typeof demographics === 'string') {
+      try {
+        demographics = JSON.parse(demographics || '{}');
+      } catch (e) {
+        demographics = {};
+      }
+    }
+
+    // Parse emergency_contacts if needed
+    let emergencyContacts = patient.emergency_contacts;
+    if (typeof emergencyContacts === 'string') {
+      try {
+        emergencyContacts = JSON.parse(emergencyContacts || '[]');
+      } catch (e) {
+        emergencyContacts = [];
+      }
+    }
+
+    // Parse allergies if needed
+    let allergies = patient.allergies;
+    if (typeof allergies === 'string') {
+      try {
+        allergies = JSON.parse(allergies || '[]');
+      } catch (e) {
+        allergies = [];
+      }
+    }
+
+    // Parse conditions if needed
+    let conditions = patient.conditions;
+    if (typeof conditions === 'string') {
+      try {
+        conditions = JSON.parse(conditions || '[]');
+      } catch (e) {
+        conditions = [];
+      }
+    }
+
+    // Build QR code data with patient information
+    const qrData = {
+      patient_id: patientId,
+      name: patient.name,
+      dob: demographics.dob || null,
+      gender: demographics.gender || null,
+      blood_group: demographics.bloodType || null,
+      height: demographics.height || null,
+      weight: demographics.weight || null,
+      allergies: allergies || [],
+      conditions: conditions || [],
+      emergency_contact: emergencyContacts.length > 0 ? emergencyContacts[0].phone || emergencyContacts[0].number : null,
+      generated_at: new Date().toISOString()
+    };
+
+    // Check if QR code already exists for this patient
+    const { data: existingQR, error: checkError } = await supabase
+      .from('qr_codes')
+      .select('id')
+      .eq('patient_id', patientId)
+      .limit(1);
+
+    if (checkError) throw checkError;
+
+    if (existingQR && existingQR.length > 0) {
+      // Update existing QR code
+      const { error: updateError } = await supabase
+        .from('qr_codes')
+        .update({ qr_data: JSON.stringify(qrData), updated_at: new Date().toISOString() })
+        .eq('patient_id', patientId);
+      
+      if (updateError) throw updateError;
+    } else {
+      // Insert new QR code
+      const { error: insertError } = await supabase
+        .from('qr_codes')
+        .insert([{ patient_id: patientId, qr_data: JSON.stringify(qrData) }]);
+      
+      if (insertError) throw insertError;
+    }
+
+    console.log('QR code generated for patient: ' + patientId);
+
+    res.json({
+      success: true,
+      message: 'QR code generated successfully',
+      patient_id: patientId,
+      qr_data: qrData
+    });
   } catch (error) {
     console.error('Error generating QR code:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -794,29 +1163,35 @@ app.get('/api/qr-codes/:patientId', async (req, res) => {
     const { patientId } = req.params;
     console.log('Fetching QR code for patient: ' + patientId);
 
-    const client = await pool.connect();
-    try {
-      const qrRes = await client.query(
-        'SELECT qr_data, created_at, updated_at FROM qr_codes WHERE patient_id = $1 LIMIT 1',
-        [patientId]
-      );
+    const { data: qrCodes, error: qrError } = await supabase
+      .from('qr_codes')
+      .select('qr_data, created_at, updated_at')
+      .eq('patient_id', patientId)
+      .limit(1);
 
-      if (!qrRes.rows[0]) {
-        return res.status(404).json({ success: false, message: 'QR code not found for this patient' });
-      }
-
-      const qrCode = qrRes.rows[0];
-
-      res.json({
-        success: true,
-        patient_id: patientId,
-        qr_data: qrCode.qr_data,
-        created_at: qrCode.created_at,
-        updated_at: qrCode.updated_at
-      });
-    } finally {
-      client.release();
+    if (qrError) throw qrError;
+    if (!qrCodes || qrCodes.length === 0) {
+      return res.status(404).json({ success: false, message: 'QR code not found for this patient' });
     }
+
+    const qrCode = qrCodes[0];
+    // Parse qr_data if it's a string
+    let qrData = qrCode.qr_data;
+    if (typeof qrData === 'string') {
+      try {
+        qrData = JSON.parse(qrData || '{}');
+      } catch (e) {
+        qrData = {};
+      }
+    }
+
+    res.json({
+      success: true,
+      patient_id: patientId,
+      qr_data: qrData,
+      created_at: qrCode.created_at,
+      updated_at: qrCode.updated_at
+    });
   } catch (error) {
     console.error('Error fetching QR code:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -829,20 +1204,23 @@ app.delete('/api/qr-codes/:patientId', async (req, res) => {
     const { patientId } = req.params;
     console.log('Deleting QR code for patient: ' + patientId);
 
-    const client = await pool.connect();
-    try {
-      const result = await client.query(
-        'DELETE FROM qr_codes WHERE patient_id = $1',
-        [patientId]
-      );
+    const { error: deleteError, count } = await supabase
+      .from('qr_codes')
+      .delete()
+      .eq('patient_id', patientId);
 
-      if (result.rowCount === 0) {
-        return res.status(404).json({ success: false, message: 'QR code not found' });
-      }
+    if (deleteError) throw deleteError;
 
+    // Check if any rows were deleted
+    const { count: checkCount } = await supabase
+      .from('qr_codes')
+      .select('id', { count: 'exact' })
+      .eq('patient_id', patientId);
+
+    if (checkCount === null || checkCount > 0) {
       res.json({ success: true, message: 'QR code deleted successfully' });
-    } finally {
-      client.release();
+    } else {
+      res.status(404).json({ success: false, message: 'QR code not found' });
     }
   } catch (error) {
     console.error('Error deleting QR code:', error);
@@ -853,7 +1231,8 @@ app.delete('/api/qr-codes/:patientId', async (req, res) => {
 // GET /api/health
 app.get('/api/health', async (req, res) => {
   try {
-    await pool.query('SELECT 1');
+    const { error } = await supabase.from('users').select('id').limit(1);
+    if (error) throw error;
     res.status(200).json({ status: 'OK', message: 'Medical Wallet API is running', timestamp: new Date().toISOString(), database: 'Connected', environment: process.env.NODE_ENV || 'development' });
   } catch (err) {
     res.status(500).json({ status: 'ERROR', message: 'Database connection failed', error: err.message });

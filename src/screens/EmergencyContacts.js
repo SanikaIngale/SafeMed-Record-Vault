@@ -37,7 +37,7 @@ const EmergencyContacts = ({ navigation }) => {
     try {
       setLoading(true);
       
-      const apiUrl = Platform.OS === 'android' ? 'http://10.164.220.89:5000' : 'http://localhost:5000';
+      const apiUrl = Platform.OS === 'android' ? 'http://10.215.134.89:5000' : 'http://localhost:5000';
       
       // Get patient_id from AsyncStorage
       const patId = await AsyncStorage.getItem('patient_id');

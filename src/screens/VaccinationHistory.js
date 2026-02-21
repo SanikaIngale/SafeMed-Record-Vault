@@ -15,7 +15,7 @@ import {
   View,
 } from 'react-native';
 
-const API_BASE_URL = 'http://10.164.220.89:5000/api';
+const API_BASE_URL = 'http://10.215.134.89:5000/api';
 
 const VaccinationHistory = ({ navigation }) => {
   const [vaccinations, setVaccinations] = useState([]);

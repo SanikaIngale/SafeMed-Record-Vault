@@ -16,7 +16,7 @@ import {
 // IMPORTANT: Change this based on your setup
 const getApiUrl = () => {
   // Expo Go on physical device requires laptop LAN IP
-  return 'http://10.164.220.89:5000';
+  return 'http://10.215.134.89:5000';
 };
 
 
