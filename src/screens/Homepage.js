@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
+import { API_URL, apiCall } from '../config/api';
 import {
   ActivityIndicator,
   Alert,
@@ -41,7 +42,7 @@ export default function HomePage({ navigation }) {
       setIsNewUser(newUserFlag === 'true');
       
       // API URL based on platform
-      const apiUrl = Platform.OS === 'android' ? 'http://10.215.134.89:5000' : 'http://localhost:5000';
+      const apiUrl = API_URL;
       
       // Try to get email from AsyncStorage first
       let userEmail = await AsyncStorage.getItem('userEmail');

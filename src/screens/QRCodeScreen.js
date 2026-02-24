@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_URL, apiCall } from '../config/api';
 
 const QRCodeScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
@@ -43,7 +44,7 @@ const QRCodeScreen = ({ navigation }) => {
 
       setPatientId(patId);
 
-      const apiUrl = Platform.OS === 'android' ? 'http://10.215.134.89:5000' : 'http://localhost:5000';
+      const apiUrl = API_URL;
 
       // Always regenerate QR code to get latest patient data
       // This ensures the QR code updates when profile information changes

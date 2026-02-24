@@ -14,8 +14,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { API_URL, apiCall } from '../config/api';
 
-const API_BASE_URL = 'http://10.215.134.89:5000/api';
+const API_BASE_URL = `${API_URL}/api`;
 
 const OngoingMedication = ({ navigation }) => {
   const [medications, setMedications] = useState([]);
@@ -43,6 +44,7 @@ const OngoingMedication = ({ navigation }) => {
 
       // Get user email from AsyncStorage
       const email = await AsyncStorage.getItem('userEmail');
+      console.log('📧 Retrieved email from storage:', email);
       
       if (!email) {
         Alert.alert('Error', 'Please login again');
@@ -51,28 +53,49 @@ const OngoingMedication = ({ navigation }) => {
       }
 
       // Step 1: Get patient_id from users table
-      const userResponse = await fetch(`${API_BASE_URL}/user/email/${email}`);
+      const encodedEmail = encodeURIComponent(email);
+      const userUrl = `${API_BASE_URL}/user/email/${encodedEmail}`;
+      console.log('🔗 Calling user endpoint:', userUrl);
+      
+      const userResponse = await fetch(userUrl);
+      console.log('📊 User response status:', userResponse.status);
+      
+      if (!userResponse.ok) {
+        throw new Error(`User fetch failed: ${userResponse.status} ${userResponse.statusText}`);
+      }
       const userData = await userResponse.json();
+      console.log('👤 User data received:', userData);
 
       if (!userData.success) {
-        throw new Error('Failed to fetch user data');
+        throw new Error('Failed to fetch user data: ' + (userData.message || 'Unknown error'));
       }
 
       const patId = userData.patient_id;
       setPatientId(patId);
+      console.log('🏥 Patient ID:', patId);
 
       // Step 2: Get medications from patients table
-      const medsResponse = await fetch(`${API_BASE_URL}/medications/${patId}`);
+      const medsUrl = `${API_BASE_URL}/medications/${patId}`;
+      console.log('🔗 Calling medications endpoint:', medsUrl);
+      
+      const medsResponse = await fetch(medsUrl);
+      console.log('📊 Medications response status:', medsResponse.status);
+      
+      if (!medsResponse.ok) {
+        throw new Error(`Medications fetch failed: ${medsResponse.status} ${medsResponse.statusText}`);
+      }
       const medsData = await medsResponse.json();
 
       if (medsData.success) {
         setMedications(medsData.medications || []);
         console.log('✅ Medications loaded:', medsData.medications?.length || 0);
+      } else {
+        throw new Error(medsData.message || 'Failed to load medications');
       }
 
     } catch (error) {
       console.error('❌ Error loading medications:', error);
-      Alert.alert('Error', 'Failed to load medications. Please try again.');
+      Alert.alert('Error', error.message || 'Failed to load medications. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);

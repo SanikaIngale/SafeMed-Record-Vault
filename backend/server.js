@@ -25,7 +25,7 @@ app.use((req, res, next) => {
 // Configuration
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key_change_this_in_production_12345';
 const PORT = process.env.PORT || 5000;
-const HOST_IP = process.env.HOST_IP || '10.185.77.5';
+const HOST_IP = process.env.HOST_IP;
 
 // Supabase client
 const supabase = createClient(

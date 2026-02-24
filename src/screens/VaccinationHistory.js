@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
+import { API_URL, apiCall } from '../config/api';
 import {
   ActivityIndicator,
   Alert,
@@ -15,7 +16,7 @@ import {
   View,
 } from 'react-native';
 
-const API_BASE_URL = 'http://10.215.134.89:5000/api';
+const API_BASE_URL = `${API_URL}/api`;
 
 const VaccinationHistory = ({ navigation }) => {
   const [vaccinations, setVaccinations] = useState([]);
@@ -51,10 +52,13 @@ const VaccinationHistory = ({ navigation }) => {
 
       // Step 1: Get patient_id from users table
       const userResponse = await fetch(`${API_BASE_URL}/user/email/${email}`);
+      if (!userResponse.ok) {
+        throw new Error(`User fetch failed: ${userResponse.status} ${userResponse.statusText}`);
+      }
       const userData = await userResponse.json();
 
       if (!userData.success) {
-        throw new Error('Failed to fetch user data');
+        throw new Error('Failed to fetch user data: ' + (userData.message || 'Unknown error'));
       }
 
       const patId = userData.patient_id;
@@ -62,16 +66,21 @@ const VaccinationHistory = ({ navigation }) => {
 
       // Step 2: Get vaccinations from patients table
       const vacsResponse = await fetch(`${API_BASE_URL}/vaccinations/${patId}`);
+      if (!vacsResponse.ok) {
+        throw new Error(`Vaccinations fetch failed: ${vacsResponse.status} ${vacsResponse.statusText}`);
+      }
       const vacsData = await vacsResponse.json();
 
       if (vacsData.success) {
         setVaccinations(vacsData.vaccinations || []);
         console.log('✅ Vaccinations loaded:', vacsData.vaccinations?.length || 0);
+      } else {
+        throw new Error(vacsData.message || 'Failed to load vaccinations');
       }
 
     } catch (error) {
       console.error('❌ Error loading vaccinations:', error);
-      Alert.alert('Error', 'Failed to load vaccinations. Please try again.');
+      Alert.alert('Error', error.message || 'Failed to load vaccinations. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);

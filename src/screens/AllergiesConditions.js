@@ -14,11 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
-const API_URL =
-  Platform.OS === 'android'
-    ? 'http://10.215.134.89:5000'
-    : 'http://localhost:5000';
+import { API_URL, apiCall } from '../config/api';
 
 const AllergiesConditions = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('allergies');

@@ -14,6 +14,7 @@ import {
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { API_URL, apiCall } from '../config/api';
 
 const EditPersonalInfo = ({ navigation }) => {
   const bloodTypes = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
@@ -56,10 +57,7 @@ const EditPersonalInfo = ({ navigation }) => {
 
     setPatientId(patId);
 
-    const apiUrl =
-      Platform.OS === 'android'
-        ? 'http://10.215.134.89:5000'
-        : 'http://localhost:5000';
+    const apiUrl = API_URL;
 
     // Fetch patient basic info (patients table)
     const patientResponse = await fetch(

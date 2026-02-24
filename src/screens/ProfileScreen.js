@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { AuthContext } from '../../navigation/AppNavigator';
 import BottomNavigation from '../components/BottomNavigation';
+import { API_URL, apiCall } from '../config/api';
 
 const ProfileScreen = ({ navigation }) => {
   const [activeNav, setActiveNav] = useState('Profile');
@@ -36,7 +37,7 @@ const ProfileScreen = ({ navigation }) => {
     try {
       setLoading(true);
       
-      const apiUrl = Platform.OS === 'android' ? 'http://10.215.134.89:5000' : 'http://localhost:5000';
+      const apiUrl = API_URL;
       
       // Get patient_id and userEmail from AsyncStorage
       let patientId = await AsyncStorage.getItem('patient_id');

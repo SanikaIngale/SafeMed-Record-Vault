@@ -1,6 +1,7 @@
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
+import { API_URL, apiCall } from '../config/api';
 import {
   ActivityIndicator,
   Alert,
@@ -37,7 +38,7 @@ const EmergencyContacts = ({ navigation }) => {
     try {
       setLoading(true);
       
-      const apiUrl = Platform.OS === 'android' ? 'http://10.215.134.89:5000' : 'http://localhost:5000';
+      const apiUrl = API_URL;
       
       // Get patient_id from AsyncStorage
       const patId = await AsyncStorage.getItem('patient_id');

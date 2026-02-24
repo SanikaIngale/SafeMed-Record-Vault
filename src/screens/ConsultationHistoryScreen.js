@@ -20,8 +20,8 @@ import {
   View,
 } from 'react-native';
 import BottomNavigation from '../components/BottomNavigation';
-
-const API_BASE_URL = 'http://10.215.134.89:5000/api';
+import { API_URL, apiCall } from '../config/api';
+const API_BASE_URL = API_URL;
 
 const ConsultationCard = ({ consultation, onPress }) => (
   <TouchableOpacity style={styles.card} onPress={onPress}>
