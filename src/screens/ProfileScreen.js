@@ -152,12 +152,6 @@ const ProfileScreen = ({ navigation }) => {
           title: 'Emergency Contacts',
           screen: 'EmergencyContacts',
         },
-        {
-          id: 'qr',
-          icon: 'qrcode',
-          title: 'My Unique QR Code',
-          screen: 'QRCode',
-        },
       ],
     },
     {

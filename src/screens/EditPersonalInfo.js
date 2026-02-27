@@ -187,7 +187,7 @@ const EditPersonalInfo = ({ navigation }) => {
 
     setSaving(true);
     try {
-      const apiUrl = Platform.OS === 'android' ? 'http://10.215.134.89:5000' : 'http://localhost:5000';
+      const apiUrl = API_URL;
       
       const updateData = {
         email: formData.email,

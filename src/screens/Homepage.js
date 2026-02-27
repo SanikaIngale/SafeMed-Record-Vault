@@ -240,16 +240,6 @@ export default function HomePage({ navigation }) {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* Header - Teal Background */}
         <View style={styles.headerSection}>
-          {/* Top Navigation */}
-          <View style={styles.topNav}>
-            <TouchableOpacity 
-              style={styles.gridIcon}
-              onPress={() => navigation.navigate('QRCode')}
-            >
-              <Ionicons name="scan" size={24} color="#FFF" />
-            </TouchableOpacity>
-          </View>
-
           {/* Welcome Section */}
           <View style={styles.welcomeSection}>
             <View style={styles.welcomeText}>
@@ -451,17 +441,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#1E4B46',
     paddingHorizontal: 16,
     paddingBottom: 24,
-    paddingTop: 16,
-  },
-  topNav: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 24,
-    paddingTop: 8,
-  },
-  gridIcon: {
-    padding: 8,
+    paddingTop: 80,
   },
   welcomeSection: {
     flexDirection: 'row',
@@ -473,7 +453,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   welcomeLabel: {
-    fontSize: 14,
+    fontSize: 25,
     color: '#E0E0E0',
     fontWeight: '500',
   },

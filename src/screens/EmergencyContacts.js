@@ -102,7 +102,7 @@ const EmergencyContacts = ({ navigation }) => {
           onPress: async () => {
             setSaving(true);
             try {
-              const apiUrl = Platform.OS === 'android' ? 'http://10.164.220.89:5000' : 'http://localhost:5000';
+              const apiUrl = API_URL;
               
               const updatedContacts = contacts.filter(contact => contact.id !== id);
               
@@ -159,7 +159,7 @@ const EmergencyContacts = ({ navigation }) => {
 
     setSaving(true);
     try {
-      const apiUrl = Platform.OS === 'android' ? 'http://10.164.220.89:5000' : 'http://localhost:5000';
+      const apiUrl = API_URL;
       
       let updatedContacts;
       

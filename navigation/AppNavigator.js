@@ -1,7 +1,7 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React, { useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import AllergiesConditions from '../src/screens/AllergiesConditions';
 import ConsultationHistoryScreen from '../src/screens/ConsultationHistoryScreen';
@@ -11,7 +11,6 @@ import HomePage from '../src/screens/Homepage';
 import OngoingMedication from '../src/screens/OngoingMedication';
 import ProfileDetailsScreen from '../src/screens/ProfileDetailsScreen';
 import ProfileScreen from '../src/screens/ProfileScreen';
-import QRCodeScreen from '../src/screens/QRCodeScreen';
 import RequestScreen from '../src/screens/RequestScreen';
 import SignInScreen from '../src/screens/signin';
 import SignUpScreen from '../src/screens/signup';
@@ -28,14 +27,11 @@ const AppNavigator = () => {
   const [userCredentials, setUserCredentials] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check if user is already logged in on app start
+  // Always start unauthenticated - show SignIn every time app opens
   useEffect(() => {
     const bootstrapAsync = async () => {
       try {
-        const token = await AsyncStorage.getItem('userToken');
-        if (token) {
-          setIsAuthenticated(true);
-        }
+        setIsAuthenticated(false);
       } catch (e) {
         console.error('Failed to restore token', e);
       } finally {
@@ -117,7 +113,6 @@ const AppNavigator = () => {
               <Stack.Screen name="Profile" component={ProfileScreen} />
               <Stack.Screen name="EditPersonalInfo" component={EditPersonalInfo} />
               <Stack.Screen name="EmergencyContacts" component={EmergencyContacts} />
-              <Stack.Screen name="QRCode" component={QRCodeScreen} />
               <Stack.Screen name="AllergiesConditions" component={AllergiesConditions} />
               <Stack.Screen name="OngoingMedication" component={OngoingMedication} />
               <Stack.Screen name="VaccinationHistory" component={VaccinationHistory} />

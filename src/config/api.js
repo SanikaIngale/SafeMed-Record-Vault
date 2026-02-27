@@ -14,7 +14,7 @@ export const API_ENDPOINTS = {
   SIGNIN: `${API_URL}/api/signin`,
   HEALTH: `${API_URL}/api/health`,
   PROFILE: `${API_URL}/api/user/profile`,
-  SAVE_DEMOGRAPHICS: `${API_URL}/api/patients/demographics`,
+  SAVE_DEMOGRAPHICS: `${API_URL}/api/patient/demographics`,
   GET_PATIENT: `${API_URL}/api/patients`,
 };
 
