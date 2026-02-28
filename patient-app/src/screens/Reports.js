@@ -212,32 +212,34 @@ export default function ReportsPage({ navigation }) {
 
   // ─── View PDF via direct public URL ─────────────────────────────────────
   const handleViewPdf = async (report) => {
-    try {
-      if (!report.file_path) {
-        Alert.alert('Error', 'No file path found for this report.');
-        return;
-      }
-
-      // Construct the direct public URL from Supabase storage
-      // Format: https://<project-ref>.supabase.co/storage/v1/object/public/medical-records/<file_path>
-      const SUPABASE_URL = API_URL.replace('/api', '').replace(':5000', '')
-        .replace('http://192.168.29.145', 'https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co');
-      
-      // Simpler: just hardcode your Supabase project URL here
-      const SUPABASE_PROJECT_URL = 'https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co';
-      const publicUrl = `${SUPABASE_PROJECT_URL}/storage/v1/object/public/medical-records/${report.file_path}`;
-
-      const supported = await Linking.canOpenURL(publicUrl);
-      if (supported) {
-        await Linking.openURL(publicUrl);
-      } else {
-        Alert.alert('Error', 'Cannot open this file. Make sure you have a PDF viewer installed.');
-      }
-    } catch (error) {
-      console.error('View error:', error);
-      Alert.alert('Error', 'Failed to open report. Please try again.');
+  try {
+    if (!report.file_path) {
+      Alert.alert('Error', 'No file path found for this report.');
+      return;
     }
-  };
+
+    // Fetch signed URL from backend
+    const response = await fetch(
+      `${API_BASE_URL}/patients/${patientId}/pdfs/${report.id}/signed-url`
+    );
+    const data = await response.json();
+
+    if (!data.success || !data.signedUrl) {
+      Alert.alert('Error', data.message || 'Could not generate file URL.');
+      return;
+    }
+
+    const supported = await Linking.canOpenURL(data.signedUrl);
+    if (supported) {
+      await Linking.openURL(data.signedUrl);
+    } else {
+      Alert.alert('Error', 'Cannot open this file. Make sure you have a PDF viewer installed.');
+    }
+  } catch (error) {
+    console.error('View error:', error);
+    Alert.alert('Error', 'Failed to open report. Please try again.');
+  }
+};
 
   // ─── Delete PDF ───────────────────────────────────────────────────────────
   const handleDeletePdf = (report) => {

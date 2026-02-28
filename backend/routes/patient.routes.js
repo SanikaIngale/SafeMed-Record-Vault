@@ -420,6 +420,40 @@ router.get('/:patientId/pdfs', async (req, res) => {
   }
 });
 
+// GET signed URL for a PDF
+router.get('/:patientId/pdfs/:pdfId/signed-url', async (req, res) => {
+  try {
+    const { patientId, pdfId } = req.params;
+
+    // Fetch pdfs array to find the file_path
+    const { data: patients, error: fetchError } = await supabase
+      .from('patients')
+      .select('pdfs')
+      .eq('patient_id', patientId)
+      .limit(1);
+
+    if (fetchError) throw fetchError;
+    if (!patients?.length) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    const pdfs = parseJson(patients[0].pdfs, []);
+    const target = pdfs.find(p => String(p.id) === String(pdfId));
+
+    if (!target) return res.status(404).json({ success: false, message: 'PDF not found' });
+
+    // Generate signed URL (valid for 60 minutes)
+    const { data, error: signError } = await supabase.storage
+      .from('medical-records')
+      .createSignedUrl(target.file_path, 3600);
+
+    if (signError) throw signError;
+
+    res.json({ success: true, signedUrl: data.signedUrl });
+  } catch (error) {
+    console.error('Signed URL error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
 // POST upload PDF → storage bucket → save metadata in patients.pdfs column
 router.post('/:patientId/pdfs/upload', async (req, res) => {
   try {
