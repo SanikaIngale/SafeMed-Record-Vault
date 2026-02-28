@@ -11,6 +11,7 @@ import HomePage from '../src/screens/Homepage';
 import OngoingMedication from '../src/screens/OngoingMedication';
 import ProfileDetailsScreen from '../src/screens/ProfileDetailsScreen';
 import ProfileScreen from '../src/screens/ProfileScreen';
+import ReportsPage from '../src/screens/Reports';
 import RequestScreen from '../src/screens/RequestScreen';
 import SignInScreen from '../src/screens/signin';
 import SignUpScreen from '../src/screens/signup';
@@ -27,7 +28,6 @@ const AppNavigator = () => {
   const [userCredentials, setUserCredentials] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Always start unauthenticated - show SignIn every time app opens
   useEffect(() => {
     const bootstrapAsync = async () => {
       try {
@@ -49,7 +49,6 @@ const AppNavigator = () => {
     },
     signOut: async () => {
       try {
-        // Clear all AsyncStorage data
         await AsyncStorage.multiRemove([
           'userToken',
           'userData',
@@ -82,7 +81,6 @@ const AppNavigator = () => {
           }}
         >
           {isLoading ? (
-            // Loading screen
             <Stack.Screen
               name="Loading"
               component={() => null}
@@ -109,7 +107,8 @@ const AppNavigator = () => {
             </>
           ) : (
             <>
-              <Stack.Screen name="Homepage" component={HomePage} options={{ animationEnabled: false }} /> 
+              <Stack.Screen name="Home" component={HomePage} options={{ animationEnabled: false }} />
+              <Stack.Screen name="Reports" component={ReportsPage} />
               <Stack.Screen name="Profile" component={ProfileScreen} />
               <Stack.Screen name="EditPersonalInfo" component={EditPersonalInfo} />
               <Stack.Screen name="EmergencyContacts" component={EmergencyContacts} />
