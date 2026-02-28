@@ -396,5 +396,138 @@ router.post('/:patientId/emergency-contacts', async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
+// ─── REPORTS / PDFs ────────────────────────────────────────────────────────
+
+// GET all PDFs for a patient (reads from pdfs column in patients table)
+router.get('/:patientId/pdfs', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+
+    const { data: patients, error } = await supabase
+      .from('patients')
+      .select('pdfs')
+      .eq('patient_id', patientId)
+      .limit(1);
+
+    if (error) throw error;
+    if (!patients?.length) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    const pdfs = parseJson(patients[0].pdfs, []);
+    res.json({ success: true, pdfs });
+  } catch (error) {
+    console.error('Error fetching PDFs:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// POST upload PDF → storage bucket → save metadata in patients.pdfs column
+router.post('/:patientId/pdfs/upload', async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const { fileBase64, fileName, mimeType, title, lab, type, date } = req.body;
+
+    if (!fileBase64 || !title || !fileName) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    // Sanitise filename (spaces → underscores, remove special chars except dot/dash/underscore)
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const id = Date.now();
+    const filePath = `${patientId}/${id}_${safeName}`;
+
+    // Upload to Supabase Storage bucket "medical-records"
+    const buffer = Buffer.from(fileBase64, 'base64');
+    const { error: storageError } = await supabase.storage
+      .from('medical-records')
+      .upload(filePath, buffer, {
+        contentType: mimeType || 'application/pdf',
+        upsert: false,
+      });
+
+    if (storageError) throw storageError;
+
+    // Fetch existing pdfs array from patients table
+    const { data: patients, error: fetchError } = await supabase
+      .from('patients')
+      .select('pdfs')
+      .eq('patient_id', patientId)
+      .limit(1);
+
+    if (fetchError) throw fetchError;
+    if (!patients?.length) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    const existingPdfs = parseJson(patients[0].pdfs, []);
+
+    // Build new PDF metadata entry (matches your JSON schema exactly)
+    const newPdf = {
+      id,
+      title,
+      lab: lab || '',
+      type: type || 'Other',
+      date,
+      file_path: filePath,
+      file_name: fileName,
+      uploaded_at: new Date().toISOString(),
+    };
+
+    existingPdfs.unshift(newPdf); // newest first
+
+    // Save updated array back to patients.pdfs column
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ pdfs: JSON.stringify(existingPdfs) })
+      .eq('patient_id', patientId);
+
+    if (updateError) throw updateError;
+
+    res.json({ success: true, pdf: newPdf });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// DELETE a PDF → remove from storage + remove from patients.pdfs column
+router.delete('/:patientId/pdfs/:pdfId', async (req, res) => {
+  try {
+    const { patientId, pdfId } = req.params;
+
+    // Fetch current pdfs array
+    const { data: patients, error: fetchError } = await supabase
+      .from('patients')
+      .select('pdfs')
+      .eq('patient_id', patientId)
+      .limit(1);
+
+    if (fetchError) throw fetchError;
+    if (!patients?.length) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    const pdfs = parseJson(patients[0].pdfs, []);
+    const target = pdfs.find(p => String(p.id) === String(pdfId));
+
+    if (!target) return res.status(404).json({ success: false, message: 'PDF not found' });
+
+    // Delete from storage
+    const { error: storageError } = await supabase.storage
+      .from('medical-records')
+      .remove([target.file_path]);
+
+    if (storageError) throw storageError;
+
+    // Remove from array and save back
+    const updatedPdfs = pdfs.filter(p => String(p.id) !== String(pdfId));
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ pdfs: JSON.stringify(updatedPdfs) })
+      .eq('patient_id', patientId);
+
+    if (updateError) throw updateError;
+
+    res.json({ success: true, message: 'PDF deleted successfully' });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
 
 module.exports = router;

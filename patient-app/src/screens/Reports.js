@@ -210,18 +210,28 @@ export default function ReportsPage({ navigation }) {
     }
   };
 
-  // ─── View PDF via signed URL ──────────────────────────────────────────────
+  // ─── View PDF via direct public URL ─────────────────────────────────────
   const handleViewPdf = async (report) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/patients/${patientId}/pdfs/${report.id}/signed-url`
-      );
-      const data = await response.json();
+      if (!report.file_path) {
+        Alert.alert('Error', 'No file path found for this report.');
+        return;
+      }
 
-      if (data.success && data.signedUrl) {
-        await Linking.openURL(data.signedUrl);
+      // Construct the direct public URL from Supabase storage
+      // Format: https://<project-ref>.supabase.co/storage/v1/object/public/medical-records/<file_path>
+      const SUPABASE_URL = API_URL.replace('/api', '').replace(':5000', '')
+        .replace('http://192.168.29.145', 'https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co');
+      
+      // Simpler: just hardcode your Supabase project URL here
+      const SUPABASE_PROJECT_URL = 'https://<YOUR_SUPABASE_PROJECT_REF>.supabase.co';
+      const publicUrl = `${SUPABASE_PROJECT_URL}/storage/v1/object/public/medical-records/${report.file_path}`;
+
+      const supported = await Linking.canOpenURL(publicUrl);
+      if (supported) {
+        await Linking.openURL(publicUrl);
       } else {
-        throw new Error(data.message || 'Failed to get view URL');
+        Alert.alert('Error', 'Cannot open this file. Make sure you have a PDF viewer installed.');
       }
     } catch (error) {
       console.error('View error:', error);
