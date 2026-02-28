@@ -29,9 +29,7 @@ app.use((req, res, next) => {
 // ─── Routes ────────────────────────────────────────────────────────────────
 app.use('/api/auth',    authRoutes);    // signup, signin, user profile
 app.use('/api/patients', patientRoutes); // medications, vaccinations, demographics, etc.
-app.use('/api/doctor',  doctorRoutes);  // doctor dashboard, consultations
-app.use('/api', authRoutes); 
-app.use('/api', patientRoutes); 
+app.use('/api/doctors', doctorRoutes);  // doctor dashboard, consultations
 
 // ─── Health check ──────────────────────────────────────────────────────────
 app.get('/api/health', async (req, res) => {

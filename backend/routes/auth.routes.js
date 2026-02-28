@@ -28,6 +28,17 @@ async function getUserById(id) {
   return data?.[0];
 }
 
+async function getNextDoctorId() {
+  const { data, error } = await supabase
+    .from('doctors').select('doctor_id').order('created_at', { ascending: false }).limit(1);
+  if (error) throw error;
+  if (data && data.length > 0 && data[0].doctor_id) {
+    const lastNum = parseInt(data[0].doctor_id.substring(1)) || 0;
+    return `D${String(lastNum + 1).padStart(4, '0')}`;
+  }
+  return 'D0001';
+}
+
 // POST /api/auth/signup
 router.post('/signup', async (req, res) => {
   try {
@@ -180,6 +191,132 @@ router.post('/signin', async (req, res) => {
     });
   } catch (error) {
     console.error('Signin error:', error);
+    res.status(500).json({ success: false, message: 'Server error during sign in', error: error.message });
+  }
+});
+
+
+// ─── DOCTOR AUTH ──────────────────────────────────────────────────────────────
+
+// POST /api/auth/doctor/signup
+router.post('/doctor/signup', async (req, res) => {
+  try {
+    const { fullName, email, phone, dob, licenseId, hospital, specialties, credentials, password } = req.body;
+
+    if (!fullName || !email || !phone || !dob || !licenseId || !hospital || !password)
+      return res.status(400).json({ success: false, message: 'All required fields must be filled' });
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email))
+      return res.status(400).json({ success: false, message: 'Invalid email format' });
+    if (password.length < 8)
+      return res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+    if (!specialties || !Array.isArray(specialties) || specialties.length === 0)
+      return res.status(400).json({ success: false, message: 'At least one specialization is required' });
+
+    // Check email uniqueness inside demographics jsonb
+    const { data: existingByEmail, error: emailCheckError } = await supabase
+      .from('doctors').select('doctor_id').eq('demographics->>email', email.toLowerCase()).limit(1);
+    if (emailCheckError) throw emailCheckError;
+    if (existingByEmail && existingByEmail.length > 0)
+      return res.status(409).json({ success: false, message: 'Email already registered' });
+
+    // Check license ID uniqueness
+    const { data: existingByLicense, error: licenseCheckError } = await supabase
+      .from('doctors').select('doctor_id').eq('license_id', licenseId).limit(1);
+    if (licenseCheckError) throw licenseCheckError;
+    if (existingByLicense && existingByLicense.length > 0)
+      return res.status(409).json({ success: false, message: 'License ID already registered' });
+
+    const newDoctorId = await getNextDoctorId();
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // demographics shape matches ProfilePage exactly
+    const demographics = {
+      full_name: fullName,
+      email: email.toLowerCase(),
+      phone_number: phone,
+      date_of_birth: dob,
+      address: { hospital_name: hospital, street: '', city: '', state: '', postal_code: '', country: 'India' }
+    };
+
+    // credentials shape: SignUp sends { type, field, institution, year }
+    // ProfilePage displays { title, institution, year } — map here
+    const mappedCredentials = (credentials || []).map(c => ({
+      title: c.field ? `${c.type} - ${c.field}` : c.type,
+      institution: c.institution,
+      year: String(c.year),
+    }));
+
+    const { error: insertError } = await supabase.from('doctors').insert([{
+      doctor_id: newDoctorId,
+      name: fullName,
+      demographics,
+      license_id: licenseId,
+      specializations: specialties,
+      credentials: mappedCredentials,
+      consultation_hours: { weekdays: 'Closed', saturdays: 'Closed', sundays: 'Closed' },
+      password_hash: passwordHash,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }]);
+    if (insertError) throw insertError;
+
+    const token = jwt.sign(
+      { doctorId: newDoctorId, email: email.toLowerCase(), role: 'doctor' },
+      JWT_SECRET, { expiresIn: '30d' }
+    );
+
+    console.log('New doctor registered: ' + email.toLowerCase() + ' | Doctor ID: ' + newDoctorId);
+    res.status(201).json({
+      success: true, message: 'Doctor account created successfully', token,
+      doctor: { doctor_id: newDoctorId, name: fullName, email: email.toLowerCase(), license_id: licenseId, specializations: specialties }
+    });
+  } catch (error) {
+    console.error('Doctor signup error:', error);
+    res.status(500).json({ success: false, message: 'Server error during sign up', error: error.message });
+  }
+});
+
+// POST /api/auth/doctor/signin
+router.post('/doctor/signin', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password)
+      return res.status(400).json({ success: false, message: 'Email and password are required' });
+
+    const { data: doctors, error: fetchError } = await supabase
+      .from('doctors').select('*').eq('demographics->>email', email.toLowerCase()).limit(1);
+    if (fetchError) throw fetchError;
+
+    const doctor = doctors?.[0];
+    if (!doctor) return res.status(404).json({ success: false, message: 'No account found with this email' });
+
+    const isPasswordValid = await bcrypt.compare(password, doctor.password_hash);
+    if (!isPasswordValid) return res.status(401).json({ success: false, message: 'Invalid email or password' });
+
+    const token = jwt.sign(
+      { doctorId: doctor.doctor_id, email: doctor.demographics.email, role: 'doctor' },
+      JWT_SECRET, { expiresIn: '30d' }
+    );
+
+    await supabase.from('doctors')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('doctor_id', doctor.doctor_id);
+
+    console.log('Doctor login successful: ' + doctor.demographics.email);
+    res.json({
+      success: true, message: 'Login successful', token,
+      doctor: {
+        doctor_id: doctor.doctor_id,
+        name: doctor.name,
+        email: doctor.demographics.email,
+        license_id: doctor.license_id,
+        specializations: doctor.specializations,
+      }
+    });
+  } catch (error) {
+    console.error('Doctor signin error:', error);
     res.status(500).json({ success: false, message: 'Server error during sign in', error: error.message });
   }
 });
