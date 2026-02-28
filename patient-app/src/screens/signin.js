@@ -191,7 +191,7 @@ export default function SignInScreen({ navigation, route }) {
         Alert.alert('Success', 'Login successful!', [
           {
             text: 'OK',
-            onPress: () => navigation.replace('Homepage'),
+            onPress: () => navigation.replace('Home'),
           },
         ]);
       } else if (response.status === 401) {

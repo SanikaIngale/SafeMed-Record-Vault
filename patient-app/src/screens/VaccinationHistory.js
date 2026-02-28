@@ -41,31 +41,19 @@ const VaccinationHistory = ({ navigation }) => {
     try {
       setLoading(true);
 
-      // Get user email from AsyncStorage
-      const email = await AsyncStorage.getItem('userEmail');
+      // Get patient_id from AsyncStorage (stored during login)
+      const patId = await AsyncStorage.getItem('patient_id');
       
-      if (!email) {
+      if (!patId) {
         Alert.alert('Error', 'Please login again');
         navigation.replace('SignIn');
         return;
       }
 
-      // Step 1: Get patient_id from users table
-      const userResponse = await fetch(`${API_BASE_URL}/user/email/${email}`);
-      if (!userResponse.ok) {
-        throw new Error(`User fetch failed: ${userResponse.status} ${userResponse.statusText}`);
-      }
-      const userData = await userResponse.json();
-
-      if (!userData.success) {
-        throw new Error('Failed to fetch user data: ' + (userData.message || 'Unknown error'));
-      }
-
-      const patId = userData.patient_id;
       setPatientId(patId);
 
-      // Step 2: Get vaccinations from patients table
-      const vacsResponse = await fetch(`${API_BASE_URL}/vaccinations/${patId}`);
+      // Get vaccinations from patients table
+      const vacsResponse = await fetch(`${API_BASE_URL}/patients/${patId}/vaccinations`);
       if (!vacsResponse.ok) {
         throw new Error(`Vaccinations fetch failed: ${vacsResponse.status} ${vacsResponse.statusText}`);
       }
@@ -117,7 +105,7 @@ const VaccinationHistory = ({ navigation }) => {
         text: 'Delete',
         onPress: async () => {
           try {
-            const response = await fetch(`${API_BASE_URL}/vaccinations/${patientId}/${id}`, {
+            const response = await fetch(`${API_BASE_URL}/patients/${patientId}/vaccinations/${id}`, {
               method: 'DELETE',
             });
 
@@ -147,7 +135,7 @@ const VaccinationHistory = ({ navigation }) => {
     try {
       if (editingVac) {
         // Update existing vaccination
-        const response = await fetch(`${API_BASE_URL}/vaccinations/${patientId}/${editingVac.id}`, {
+        const response = await fetch(`${API_BASE_URL}/patients/${patientId}/vaccinations/${editingVac.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -167,7 +155,7 @@ const VaccinationHistory = ({ navigation }) => {
         }
       } else {
         // Add new vaccination
-        const response = await fetch(`${API_BASE_URL}/vaccinations/${patientId}`, {
+        const response = await fetch(`${API_BASE_URL}/patients/${patientId}/vaccinations`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
