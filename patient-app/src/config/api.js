@@ -10,12 +10,20 @@ export const API_URL = `http://${LOCAL_IP}:${PORT}`;
 
 // API endpoints
 export const API_ENDPOINTS = {
-  SIGNUP: `${API_URL}/api/signup`,
-  SIGNIN: `${API_URL}/api/signin`,
+  SIGNUP: `${API_URL}/api/auth/signup`,
+  SIGNIN: `${API_URL}/api/auth/signin`,
   HEALTH: `${API_URL}/api/health`,
-  PROFILE: `${API_URL}/api/user/profile`,
-  SAVE_DEMOGRAPHICS: `${API_URL}/api/patient/demographics`,
+  PROFILE: `${API_URL}/api/auth/user/profile`,
+  SAVE_DEMOGRAPHICS: `${API_URL}/api/auth/patient/demographics`,
   GET_PATIENT: `${API_URL}/api/patients`,
+
+  MEDICATIONS: (patientId) => `${API_URL}/api/patients/${patientId}/medications`,
+  VACCINATIONS: (patientId) => `${API_URL}/api/patients/${patientId}/vaccinations`,
+  DEMOGRAPHICS: (patientId) => `${API_URL}/api/patients/${patientId}/demographics`,
+  ALLERGIES: (patientId) => `${API_URL}/api/patients/${patientId}/allergies`,
+  CONDITIONS: (patientId) => `${API_URL}/api/patients/${patientId}/conditions`,
+  EMERGENCY_CONTACTS: (patientId) => `${API_URL}/api/patients/${patientId}/emergency-contacts`,
+
 };
 
 // Helper function for making API calls
