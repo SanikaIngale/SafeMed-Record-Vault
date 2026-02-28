@@ -3,21 +3,14 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function BottomNavigation({ activeNav, onNavigate, navigation }) {
   const navItems = [
-    { name: 'Home', icon: 'home', screen: 'Homepage' },
+    { name: 'Home', icon: 'home', screen: 'Home' },        // ✅ was 'Homepage'
     { name: 'Requests', icon: 'business', screen: 'Request' },
-    { name: 'Reports', icon: 'document', screen: null },
+    { name: 'Reports', icon: 'document', screen: 'Reports' }, // ✅ was null
     { name: 'Profile', icon: 'person', screen: 'Profile' },
   ];
 
   const handlePress = (item) => {
-    // Set active state first
-    if (item.screen === 'Homepage') {
-      onNavigate('Home');
-    } else {
-      onNavigate(item.name);
-    }
-    
-    // Then navigate if screen exists
+    onNavigate(item.name);
     if (item.screen && navigation) {
       navigation.navigate(item.screen);
     }
@@ -30,24 +23,20 @@ export default function BottomNavigation({ activeNav, onNavigate, navigation }) 
           key={item.name}
           style={styles.navItem}
           onPress={() => handlePress(item)}
-          disabled={!item.screen}
         >
           <Ionicons
             name={item.icon}
             size={24}
             color={
-              (activeNav === item.name || (!activeNav && item.name === 'Home')) 
-                ? '#1E4B46' 
-                : item.screen 
-                  ? '#999' 
-                  : '#ccc'
+              (activeNav === item.name || (!activeNav && item.name === 'Home'))
+                ? '#1E4B46'
+                : '#999'
             }
           />
           <Text
             style={[
               styles.navLabel,
               (activeNav === item.name || (!activeNav && item.name === 'Home')) && styles.navLabelActive,
-              !item.screen && styles.navLabelDisabled,
             ]}
           >
             {item.name}
@@ -80,8 +69,5 @@ const styles = StyleSheet.create({
   navLabelActive: {
     color: '#1E4B46',
     fontWeight: '600',
-  },
-  navLabelDisabled: {
-    color: '#ccc',
   },
 });

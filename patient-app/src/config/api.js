@@ -3,7 +3,7 @@
 
 
 // Change this to your computer's IP address
-const LOCAL_IP = '192.168.0.104';
+const LOCAL_IP = '10.128.234.5';
 const PORT = '5001';
 
 export const API_URL = `http://${LOCAL_IP}:${PORT}`;

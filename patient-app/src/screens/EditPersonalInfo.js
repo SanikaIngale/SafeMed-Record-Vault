@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  SafeAreaView,
-  Alert,
-  ActivityIndicator,
-  Platform,
-} from 'react-native';
 import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { API_URL, apiCall } from '../config/api';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Platform,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { API_URL } from '../config/api';
 
 const EditPersonalInfo = ({ navigation }) => {
   const bloodTypes = ['O+', 'O-', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-'];
@@ -73,7 +73,7 @@ const EditPersonalInfo = ({ navigation }) => {
 
     // Fetch user info (users table) to get phone number
     const userResponse = await fetch(
-      `${apiUrl}/api/user/email/${userEmail}`
+      `${apiUrl}/api/auth/user/email/${userEmail}`
     );
     const userData = await userResponse.json();
 
@@ -199,7 +199,7 @@ const EditPersonalInfo = ({ navigation }) => {
         weight: parseFloat(formData.weight),
       };
 
-      const response = await fetch(`${apiUrl}/api/patient/demographics`, {
+      const response = await fetch(`${apiUrl}/api/patients/demographics`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

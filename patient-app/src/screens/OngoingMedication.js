@@ -14,7 +14,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { API_URL, apiCall } from '../config/api';
+import { API_URL } from '../config/api';
 
 const API_BASE_URL = `${API_URL}/api`;
 
@@ -42,10 +42,9 @@ const OngoingMedication = ({ navigation }) => {
     try {
       setLoading(true);
 
-      // Get user email from AsyncStorage
       const email = await AsyncStorage.getItem('userEmail');
       console.log('📧 Retrieved email from storage:', email);
-      
+
       if (!email) {
         Alert.alert('Error', 'Please login again');
         navigation.replace('SignIn');
@@ -54,12 +53,12 @@ const OngoingMedication = ({ navigation }) => {
 
       // Step 1: Get patient_id from users table
       const encodedEmail = encodeURIComponent(email);
-      const userUrl = `${API_BASE_URL}/user/email/${encodedEmail}`;
+      const userUrl = `${API_BASE_URL}/auth/user/email/${encodedEmail}`;
       console.log('🔗 Calling user endpoint:', userUrl);
-      
+
       const userResponse = await fetch(userUrl);
       console.log('📊 User response status:', userResponse.status);
-      
+
       if (!userResponse.ok) {
         throw new Error(`User fetch failed: ${userResponse.status} ${userResponse.statusText}`);
       }
@@ -75,12 +74,12 @@ const OngoingMedication = ({ navigation }) => {
       console.log('🏥 Patient ID:', patId);
 
       // Step 2: Get medications from patients table
-      const medsUrl = `${API_BASE_URL}/medications/${patId}`;
+      const medsUrl = `${API_BASE_URL}/patients/${patId}/medications`;
       console.log('🔗 Calling medications endpoint:', medsUrl);
-      
+
       const medsResponse = await fetch(medsUrl);
       console.log('📊 Medications response status:', medsResponse.status);
-      
+
       if (!medsResponse.ok) {
         throw new Error(`Medications fetch failed: ${medsResponse.status} ${medsResponse.statusText}`);
       }
@@ -133,7 +132,7 @@ const OngoingMedication = ({ navigation }) => {
         text: 'Delete',
         onPress: async () => {
           try {
-            const response = await fetch(`${API_BASE_URL}/medications/${patientId}/${id}`, {
+            const response = await fetch(`${API_BASE_URL}/patients/${patientId}/medications/${id}`, {
               method: 'DELETE',
             });
 
@@ -163,7 +162,7 @@ const OngoingMedication = ({ navigation }) => {
     try {
       if (editingMed) {
         // Update existing medication
-        const response = await fetch(`${API_BASE_URL}/medications/${patientId}/${editingMed.id}`, {
+        const response = await fetch(`${API_BASE_URL}/patients/${patientId}/medications/${editingMed.id}`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -183,7 +182,7 @@ const OngoingMedication = ({ navigation }) => {
         }
       } else {
         // Add new medication
-        const response = await fetch(`${API_BASE_URL}/medications/${patientId}`, {
+        const response = await fetch(`${API_BASE_URL}/patients/${patientId}/medications`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -230,8 +229,8 @@ const OngoingMedication = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1E4B46']} />
