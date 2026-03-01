@@ -66,8 +66,10 @@ const LoginPage = () => {
       }
 
       // Persist token + doctor info for downstream pages
-      localStorage.setItem("doctorToken", data.token);
-      localStorage.setItem("doctorData",  JSON.stringify(data.doctor));
+      localStorage.setItem("doctor_token", data.token);
+      localStorage.setItem("doctor_id",    data.doctor.doctor_id);
+      localStorage.setItem("doctor_name",  data.doctor.name);
+      localStorage.setItem("doctor_email", data.doctor.email);
 
       navigate("/dashboard");
     } catch (err) {

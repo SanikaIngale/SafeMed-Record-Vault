@@ -127,6 +127,7 @@ const PatientsPage = () => {
   const handleNav = (key) => {
     if (key === "dashboard") navigate("/dashboard");
     else if (key === "profile") navigate("/profile");
+    // Already on patients page, no action needed
   };
 
   const filtered = PATIENTS.filter(p => {
@@ -154,7 +155,7 @@ const PatientsPage = () => {
       <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: F.body }}>
 
         {/* Sidebar */}
-        <Sidebar active="patients" onNav={handleNav} onLogout={() => navigate("/login")} />
+        <Sidebar active="patients" onNav={handleNav} onLogout={() => { localStorage.removeItem('doctor_token'); localStorage.removeItem('doctorData'); navigate("/login"); }} />
 
         {/* Main */}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh" }}>

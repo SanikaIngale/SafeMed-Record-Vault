@@ -42,6 +42,7 @@ const CloseIcon   = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="
 const BellIcon    = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>;
 const HomeIcon    = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
 const ProfileIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+const PatientsIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
 const WarningIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
 const LockIcon    = () => <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
 const SendIcon    = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
@@ -50,6 +51,7 @@ const SendIcon    = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="
 const Sidebar = ({ active, onNav, onLogout, doctorName }) => {
   const navItems = [
     { key: "dashboard", label: "Dashboard",  icon: <HomeIcon />    },
+    { key: "patients",   label: "My Patients", icon: <PatientsIcon /> },
     { key: "profile",   label: "My Profile", icon: <ProfileIcon /> },
   ];
   return (
@@ -173,7 +175,7 @@ const DashboardPage = () => {
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(true);
 
-  const token = localStorage.getItem('doctorToken');
+  const token = localStorage.getItem('doctor_token');
 
   // Redirect to login if no token — prevents 'Bearer null' requests that
   // cause CORS errors (middleware rejects before CORS headers are set)
@@ -215,8 +217,11 @@ const DashboardPage = () => {
 
   useEffect(() => {
     // Load doctor info from localStorage
-    const stored = localStorage.getItem('doctorData');
-    if (stored) setDoctorInfo(JSON.parse(stored));
+    const name = localStorage.getItem('doctor_name');
+    const email = localStorage.getItem('doctor_email');
+    if (name || email) {
+      setDoctorInfo({ name, email });
+    }
 
     fetchMyPatients();
     fetchAccessRequests();
@@ -224,12 +229,15 @@ const DashboardPage = () => {
 
   const handleNav = (key) => {
     if (key === "profile") { navigate("/profile"); return; }
+    if (key === "patients") { navigate("/patients"); return; }
     setActiveNav(key);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('doctorToken');
-    localStorage.removeItem('doctorData');
+    localStorage.removeItem('doctor_token');
+    localStorage.removeItem('doctor_id');
+    localStorage.removeItem('doctor_name');
+    localStorage.removeItem('doctor_email');
     navigate("/login");
   };
 
