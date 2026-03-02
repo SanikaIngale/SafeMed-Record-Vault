@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_URL = 'http://localhost:5001'; // change to your backend URL
+const API_URL = 'http://localhost:5001';
 
 const C = {
   bg: "#F0F4F3", primary: "#1C4A3E", primaryLight: "#2D6A5A",
@@ -11,20 +11,34 @@ const C = {
 };
 const F = { display: "'Georgia', 'Times New Roman', serif", body: "'Helvetica Neue', Arial, sans-serif" };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-const initials = (name) => name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
+const safeStr = (val, fallback = "—") => {
+  if (val === null || val === undefined) return fallback;
+  if (typeof val === "string")  return val.trim() || fallback;
+  if (typeof val === "number")  return String(val);
+  if (typeof val === "object")  return val.name || val.condition || val.label || val.value || fallback;
+  return String(val);
+};
+
+const parseJ = (v, fallback) => {
+  if (!v) return fallback;
+  if (typeof v === "string") { try { return JSON.parse(v); } catch { return fallback; } }
+  return v;
+};
+
+const initials = (name) => safeStr(name, "?").split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2);
 const avatarColor = (name) => {
   const palette = ["#1C4A3E", "#1565C0", "#6A1B9A", "#00695C", "#4E342E", "#283593"];
   let h = 0;
-  for (let c of name) h = (h + c.charCodeAt(0)) % palette.length;
+  for (let c of safeStr(name, "A")) h = (h + c.charCodeAt(0)) % palette.length;
   return palette[h];
 };
 
 const RequestBadge = ({ status }) => {
   const map = {
-    "pending":  { bg: "#FFF8E1", color: "#E65100", border: "#FFE082", icon: "⏱", label: "Pending"  },
-    "approved": { bg: "#E8F5E9", color: "#2E7D32", border: "#A5D6A7", icon: "✓", label: "Approved" },
-    "rejected": { bg: "#FFEBEE", color: "#C62828", border: "#FFCDD2", icon: "✕", label: "Rejected" },
+    "pending":   { bg: "#FFF8E1", color: "#E65100", border: "#FFE082", icon: "⏱", label: "Pending"   },
+    "approved":  { bg: "#E8F5E9", color: "#2E7D32", border: "#A5D6A7", icon: "✓", label: "Approved"  },
+    "rejected":  { bg: "#FFEBEE", color: "#C62828", border: "#FFCDD2", icon: "✕", label: "Rejected"  },
+    "emergency": { bg: "#FFF3E0", color: "#E65100", border: "#FFCC80", icon: "🛡", label: "Emergency" },
   };
   const s = map[status?.toLowerCase()] || map["pending"];
   return (
@@ -35,24 +49,24 @@ const RequestBadge = ({ status }) => {
 };
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
-const SearchIcon  = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
-const ShieldIcon  = ({ size = 18 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
-const LogoutIcon  = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
-const CloseIcon   = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
-const BellIcon    = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>;
-const HomeIcon    = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
-const ProfileIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+const SearchIcon   = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+const ShieldIcon   = ({ size = 18 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>;
+const LogoutIcon   = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>;
+const CloseIcon    = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>;
+const BellIcon     = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>;
+const HomeIcon     = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const ProfileIcon  = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
 const PatientsIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
-const WarningIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
-const LockIcon    = () => <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
-const SendIcon    = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
+const WarningIcon  = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+const LockIcon     = () => <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>;
+const SendIcon     = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>;
 
 // ── Sidebar ───────────────────────────────────────────────────────────────────
-const Sidebar = ({ active, onNav, onLogout, doctorName }) => {
+const Sidebar = ({ active, onNav, onLogout }) => {
   const navItems = [
-    { key: "dashboard", label: "Dashboard",  icon: <HomeIcon />    },
-    { key: "patients",   label: "My Patients", icon: <PatientsIcon /> },
-    { key: "profile",   label: "My Profile", icon: <ProfileIcon /> },
+    { key: "dashboard", label: "Dashboard",   icon: <HomeIcon />     },
+    { key: "patients",  label: "My Patients",  icon: <PatientsIcon /> },
+    { key: "profile",   label: "My Profile",   icon: <ProfileIcon />  },
   ];
   return (
     <div style={{ width: "240px", minHeight: "100vh", flexShrink: 0, background: C.primary, display: "flex", flexDirection: "column" }}>
@@ -71,54 +85,238 @@ const Sidebar = ({ active, onNav, onLogout, doctorName }) => {
         {navItems.map(item => (
           <button key={item.key} onClick={() => onNav(item.key)}
             style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderRadius: "12px", marginBottom: "4px", background: active === item.key ? "rgba(255,255,255,0.15)" : "transparent", border: "none", cursor: "pointer", color: active === item.key ? "#fff" : "rgba(255,255,255,0.6)", fontSize: "14px", fontWeight: active === item.key ? "600" : "400", fontFamily: F.body, textAlign: "left" }}
+            onMouseEnter={e => { if (active !== item.key) { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#fff"; }}}
+            onMouseLeave={e => { if (active !== item.key) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}}
           >{item.icon} {item.label}</button>
         ))}
       </nav>
       <div style={{ padding: "16px 12px", borderTop: "1px solid rgba(255,255,255,0.1)" }}>
         <button onClick={onLogout}
           style={{ width: "100%", display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px", borderRadius: "12px", background: "transparent", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.55)", fontSize: "14px", fontFamily: F.body, textAlign: "left" }}
+          onMouseEnter={e => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#fff"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "rgba(255,255,255,0.55)"; }}
         ><LogoutIcon /> Sign Out</button>
       </div>
     </div>
   );
 };
 
-// ── Emergency Modal ───────────────────────────────────────────────────────────
-const EmergencyModal = ({ onClose }) => {
-  const [reason, setReason] = useState("");
+// ── Emergency Data Display Modal ──────────────────────────────────────────────
+const EmergencyDataModal = ({ data, patientId, reason, onClose }) => {
+  const demo        = parseJ(data.demographics, {});
+  const allergies   = parseJ(data.allergies, []);
+  const conditions  = parseJ(data.conditions, []);
+  const medications = parseJ(data.medications, []);
+  const vaccines    = parseJ(data.vaccination_records, []);
+
+  const bloodType = demo.bloodType || demo.blood_type || "—";
+
+  const Section = ({ title, emoji, children }) => (
+    <div style={{ marginBottom: "20px" }}>
+      <div style={{ fontSize: "12px", fontWeight: "700", color: C.textSecondary, textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+        <span>{emoji}</span> {title}
+      </div>
+      {children}
+    </div>
+  );
+
+  const Pill = ({ label, bg, color, border }) => (
+    <span style={{ background: bg, color, border: `1px solid ${border}`, padding: "5px 14px", borderRadius: "999px", fontSize: "13px", fontWeight: "600", display: "inline-block", marginRight: "8px", marginBottom: "6px" }}>
+      {label}
+    </span>
+  );
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", backdropFilter: "blur(4px)" }}>
+      <div style={{ background: C.white, borderRadius: "20px", width: "100%", maxWidth: "600px", maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 24px 64px rgba(0,0,0,0.25)", animation: "modalIn 0.2s ease" }}>
+
+        {/* Header — red emergency banner */}
+        <div style={{ background: `linear-gradient(135deg, #B71C1C 0%, ${C.error} 100%)`, padding: "20px 24px", flexShrink: 0 }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{ width: "40px", height: "40px", background: "rgba(255,255,255,0.15)", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <ShieldIcon size={20} />
+              </div>
+              <div>
+                <div style={{ color: "rgba(255,255,255,0.75)", fontSize: "11px", letterSpacing: "1.5px", textTransform: "uppercase", fontFamily: F.body }}>🛡 Break-Glass Emergency Access</div>
+                <div style={{ color: "#fff", fontSize: "20px", fontWeight: "800", fontFamily: F.display }}>{safeStr(data.name, patientId)}</div>
+                <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "12px", marginTop: "2px", fontFamily: F.body }}>ID: {patientId} · This access is logged and audited</div>
+              </div>
+            </div>
+            <button onClick={onClose} style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: "10px", cursor: "pointer", color: "#fff", display: "flex", padding: "8px" }}>
+              <CloseIcon />
+            </button>
+          </div>
+          {/* Reason chip */}
+          <div style={{ marginTop: "14px", background: "rgba(0,0,0,0.2)", borderRadius: "10px", padding: "10px 14px", fontSize: "13px", color: "rgba(255,255,255,0.85)", fontFamily: F.body, lineHeight: 1.5 }}>
+            <strong style={{ color: "#fff" }}>Reason:</strong> {reason}
+          </div>
+        </div>
+
+        {/* Body — scrollable */}
+        <div style={{ overflowY: "auto", padding: "24px", flex: 1 }}>
+
+          {/* Blood type + quick stats */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "24px" }}>
+            {[
+              { label: "Blood Type", value: bloodType,                      bg: "#FFEBEE", color: "#C62828", border: "#FFCDD2" },
+              { label: "Age",        value: demo.dob ? `${Math.floor((new Date() - new Date(demo.dob)) / (365.25*24*60*60*1000))} yrs` : "—", bg: C.primaryGhost, color: C.primary, border: "rgba(28,74,62,0.2)" },
+              { label: "Gender",     value: demo.gender ? demo.gender.charAt(0).toUpperCase() + demo.gender.slice(1) : "—", bg: "#EDE7F6", color: "#4527A0", border: "#B39DDB" },
+            ].map(({ label, value, bg, color, border }) => (
+              <div key={label} style={{ background: bg, border: `1px solid ${border}`, borderRadius: "12px", padding: "14px 16px", textAlign: "center" }}>
+                <div style={{ fontSize: "11px", color, fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.6px", fontFamily: F.body, marginBottom: "4px" }}>{label}</div>
+                <div style={{ fontSize: "22px", fontWeight: "800", color, fontFamily: F.display }}>{value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Allergies */}
+          <Section title="Allergies" emoji="⚠️">
+            {allergies.length === 0
+              ? <p style={{ color: C.textSecondary, fontSize: "14px", margin: 0 }}>No known allergies.</p>
+              : <div>{allergies.map((a, i) => (
+                  <Pill key={i} label={typeof a === "object" ? (a.name || a.type || JSON.stringify(a)) : a} bg="#FFF8E1" color="#E65100" border="#FFE082" />
+                ))}</div>
+            }
+          </Section>
+
+          {/* Conditions */}
+          <Section title="Medical Conditions" emoji="🩺">
+            {conditions.length === 0
+              ? <p style={{ color: C.textSecondary, fontSize: "14px", margin: 0 }}>No conditions on record.</p>
+              : <div>{conditions.map((c, i) => (
+                  <Pill key={i} label={typeof c === "object" ? (c.name || c.condition || JSON.stringify(c)) : c} bg={C.primaryGhost} color={C.primary} border="rgba(28,74,62,0.2)" />
+                ))}</div>
+            }
+          </Section>
+
+          {/* Current Medications */}
+          <Section title="Current Medications" emoji="💊">
+            {medications.length === 0
+              ? <p style={{ color: C.textSecondary, fontSize: "14px", margin: 0 }}>No medications on record.</p>
+              : medications.map((m, i) => (
+                <div key={i} style={{ border: `1px solid ${C.border}`, borderRadius: "10px", padding: "12px 16px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "8px" }}>
+                  <div>
+                    <div style={{ fontSize: "14px", fontWeight: "700", color: C.textPrimary }}>{safeStr(m.name)}</div>
+                    <div style={{ fontSize: "12px", color: C.textSecondary, marginTop: "2px" }}>
+                      {[m.dosage, m.frequency, m.duration].filter(Boolean).join(" · ")}
+                    </div>
+                  </div>
+                  {m.instructions && (
+                    <span style={{ fontSize: "12px", color: C.textSecondary, fontStyle: "italic" }}>{m.instructions}</span>
+                  )}
+                </div>
+              ))
+            }
+          </Section>
+
+          {/* Vaccinations */}
+          <Section title="Vaccinations" emoji="💉">
+            {vaccines.length === 0
+              ? <p style={{ color: C.textSecondary, fontSize: "14px", margin: 0 }}>No vaccination records.</p>
+              : vaccines.map((v, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", background: C.bg, borderRadius: "10px", marginBottom: "6px" }}>
+                  <span style={{ fontSize: "14px", fontWeight: "600", color: C.textPrimary }}>{safeStr(v.name)}</span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    {v.dose && <span style={{ fontSize: "12px", color: C.textSecondary }}>{v.dose}</span>}
+                    <span style={{ background: "#E8F5E9", color: "#2E7D32", border: "1px solid #A5D6A7", padding: "3px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: "600" }}>✓ Done</span>
+                  </div>
+                </div>
+              ))
+            }
+          </Section>
+
+        </div>
+
+        {/* Footer */}
+        <div style={{ borderTop: `1px solid ${C.border}`, padding: "16px 24px", background: "#FFF8E1", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+          <div style={{ fontSize: "12px", color: "#E65100", fontFamily: F.body, display: "flex", alignItems: "center", gap: "6px" }}>
+            <WarningIcon /> Emergency access is logged. Patient has been notified.
+          </div>
+          <button onClick={onClose}
+            style={{ padding: "9px 22px", background: C.error, border: "none", borderRadius: "10px", color: "#fff", fontSize: "13px", fontWeight: "700", fontFamily: F.body, cursor: "pointer" }}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ── Emergency Modal (input form) ──────────────────────────────────────────────
+const EmergencyModal = ({ onClose, onSubmit }) => {
+  const [reason, setReason]       = useState("");
   const [patientId, setPatientId] = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState("");
   const [rf, setRf] = useState(false);
   const [pf, setPf] = useState(false);
+
+  const handleGrant = async () => {
+    if (!patientId.trim()) { setError("Patient ID is required."); return; }
+    if (!reason.trim())    { setError("Please provide a reason for emergency access."); return; }
+    setError("");
+    setLoading(true);
+    try {
+      await onSubmit(patientId.trim().toUpperCase(), reason.trim());
+      // parent will close this modal and open data modal
+    } catch (err) {
+      setError(err.message || "Failed. Please check the patient ID and try again.");
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px", backdropFilter: "blur(4px)" }}>
-      <div style={{ background: C.white, borderRadius: "20px", padding: "32px", width: "100%", maxWidth: "480px", boxShadow: "0 24px 64px rgba(0,0,0,0.2)" }}>
+      <div style={{ background: C.white, borderRadius: "20px", padding: "32px", width: "100%", maxWidth: "480px", boxShadow: "0 24px 64px rgba(0,0,0,0.2)", animation: "modalIn 0.2s ease" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{ color: C.error }}><ShieldIcon size={22} /></span>
             <h2 style={{ fontSize: "18px", fontWeight: "700", color: C.textPrimary, fontFamily: F.display, margin: 0 }}>Emergency Break-Glass Access</h2>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSecondary, display: "flex", padding: "4px" }}><CloseIcon /></button>
+          <button onClick={onClose} disabled={loading} style={{ background: "none", border: "none", cursor: "pointer", color: C.textSecondary, display: "flex", padding: "4px" }}><CloseIcon /></button>
         </div>
+
         <div style={{ background: C.errorBg, border: "1px solid #FFCDD2", borderRadius: "12px", padding: "14px 16px", marginBottom: "24px", display: "flex", gap: "10px" }}>
           <span style={{ color: C.error, flexShrink: 0 }}><WarningIcon /></span>
           <p style={{ fontSize: "13px", color: C.error, fontFamily: F.body, lineHeight: 1.6, margin: 0 }}>
-            <strong>Warning:</strong> This action will be logged and audited. Only use in genuine emergency situations.
+            <strong>Break-glass access:</strong> Critical patient data will be shown immediately. This action is permanently logged and audited.
           </p>
         </div>
-        <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: C.textSecondary, marginBottom: "8px", fontFamily: F.body }}>Reason for Emergency Access</label>
-        <textarea value={reason} onChange={e => setReason(e.target.value)} onFocus={() => setRf(true)} onBlur={() => setRf(false)}
-          placeholder="Describe the emergency situation..." rows={4}
-          style={{ width: "100%", padding: "13px 16px", background: C.inputBg, border: `1.5px solid ${rf ? C.primary : C.border}`, borderRadius: "12px", fontSize: "14px", color: C.textPrimary, fontFamily: F.body, outline: "none", resize: "vertical", boxSizing: "border-box", marginBottom: "20px" }}
+
+        {error && (
+          <div style={{ background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: "8px", padding: "10px 14px", marginBottom: "16px", fontSize: "13px", color: C.error, fontFamily: F.body }}>
+            {error}
+          </div>
+        )}
+
+        <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: C.textSecondary, marginBottom: "8px", fontFamily: F.body }}>Patient ID *</label>
+        <input
+          value={patientId}
+          onChange={e => { setPatientId(e.target.value); setError(""); }}
+          onFocus={() => setPf(true)} onBlur={() => setPf(false)}
+          placeholder="e.g. P0009"
+          style={{ width: "100%", padding: "13px 16px", background: C.inputBg, border: `1.5px solid ${pf ? C.primary : C.border}`, borderRadius: "12px", fontSize: "14px", color: C.textPrimary, fontFamily: F.body, outline: "none", boxSizing: "border-box", marginBottom: "20px" }}
         />
-        <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: C.textSecondary, marginBottom: "8px", fontFamily: F.body }}>Patient ID</label>
-        <input value={patientId} onChange={e => setPatientId(e.target.value)} onFocus={() => setPf(true)} onBlur={() => setPf(false)}
-          placeholder="Enter patient ID"
-          style={{ width: "100%", padding: "13px 16px", background: C.inputBg, border: `1.5px solid ${pf ? C.primary : C.border}`, borderRadius: "12px", fontSize: "14px", color: C.textPrimary, fontFamily: F.body, outline: "none", boxSizing: "border-box", marginBottom: "28px" }}
+
+        <label style={{ display: "block", fontSize: "13px", fontWeight: "700", color: C.textSecondary, marginBottom: "8px", fontFamily: F.body }}>Reason for Emergency Access *</label>
+        <textarea
+          value={reason}
+          onChange={e => { setReason(e.target.value); setError(""); }}
+          onFocus={() => setRf(true)} onBlur={() => setRf(false)}
+          placeholder="Describe the emergency situation..."
+          rows={4}
+          style={{ width: "100%", padding: "13px 16px", background: C.inputBg, border: `1.5px solid ${rf ? C.primary : C.border}`, borderRadius: "12px", fontSize: "14px", color: C.textPrimary, fontFamily: F.body, outline: "none", resize: "vertical", boxSizing: "border-box", marginBottom: "28px" }}
         />
+
         <div style={{ display: "flex", gap: "12px" }}>
-          <button onClick={onClose} style={{ flex: 1, padding: "13px", background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: "12px", fontSize: "15px", fontWeight: "600", fontFamily: F.body, color: C.textSecondary, cursor: "pointer" }}>Cancel</button>
-          <button style={{ flex: 2, padding: "13px", background: C.error, border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "700", fontFamily: F.body, color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-            <ShieldIcon size={16} /> Grant Emergency Access
+          <button onClick={onClose} disabled={loading}
+            style={{ flex: 1, padding: "13px", background: "transparent", border: `1.5px solid ${C.border}`, borderRadius: "12px", fontSize: "15px", fontWeight: "600", fontFamily: F.body, color: C.textSecondary, cursor: "pointer" }}>
+            Cancel
+          </button>
+          <button onClick={handleGrant} disabled={loading || !patientId.trim() || !reason.trim()}
+            style={{ flex: 2, padding: "13px", background: loading || !patientId.trim() || !reason.trim() ? "#9E9E9E" : C.error, border: "none", borderRadius: "12px", fontSize: "15px", fontWeight: "700", fontFamily: F.body, color: "#fff", cursor: loading || !patientId.trim() || !reason.trim() ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", transition: "background 0.2s" }}>
+            <ShieldIcon size={16} /> {loading ? "Fetching Records..." : "Access Emergency Data"}
           </button>
         </div>
       </div>
@@ -142,9 +340,9 @@ const RequestAccessModal = ({ patientId, onClose, onSubmit, loading }) => (
       </div>
       <div style={{ background: C.primaryGhost, borderRadius: "14px", padding: "24px", marginBottom: "28px", textAlign: "center" }}>
         <div style={{ fontSize: "36px", marginBottom: "12px" }}>🔒</div>
-        <p style={{ fontSize: "15px", fontWeight: "700", color: C.textPrimary, fontFamily: F.display, margin: "0 0 8px" }}>Are you sure you want to request access?</p>
+        <p style={{ fontSize: "15px", fontWeight: "700", color: C.textPrimary, fontFamily: F.display, margin: "0 0 8px" }}>Send access request?</p>
         <p style={{ fontSize: "13px", color: C.textSecondary, fontFamily: F.body, lineHeight: 1.6, margin: 0 }}>
-          A request will be sent for patient <strong style={{ color: C.primary }}>{patientId}</strong>. You will be notified once approved.
+          A request will be sent to patient <strong style={{ color: C.primary }}>{patientId}</strong>. You will be notified once approved.
         </p>
       </div>
       <div style={{ display: "flex", gap: "12px" }}>
@@ -161,29 +359,26 @@ const RequestAccessModal = ({ patientId, onClose, onSubmit, loading }) => (
 // ── Main Dashboard ────────────────────────────────────────────────────────────
 const DashboardPage = () => {
   const navigate = useNavigate();
-  const [activeNav, setActiveNav]       = useState("dashboard");
-  const [searchQuery, setSearchQuery]   = useState("");
-  const [searchFocused, setSearchFocused] = useState(false);
-  const [showEmergency, setShowEmergency] = useState(false);
-  const [requestModal, setRequestModal] = useState(null);
+  const [activeNav, setActiveNav]           = useState("dashboard");
+  const [searchQuery, setSearchQuery]       = useState("");
+  const [searchFocused, setSearchFocused]   = useState(false);
+  const [showEmergency, setShowEmergency]   = useState(false);
+  const [emergencyData, setEmergencyData]   = useState(null); // { patient, reason, patientId }
+  const [requestModal, setRequestModal]     = useState(null);
   const [requestLoading, setRequestLoading] = useState(false);
 
-  // Real data from API
-  const [myPatients, setMyPatients]     = useState([]);
-  const [accessRequests, setAccessRequests] = useState([]);
-  const [doctorInfo, setDoctorInfo]     = useState(null);
+  const [myPatients, setMyPatients]           = useState([]);
+  const [accessRequests, setAccessRequests]   = useState([]);
+  const [doctorInfo, setDoctorInfo]           = useState(null);
   const [loadingPatients, setLoadingPatients] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(true);
 
   const token = localStorage.getItem('doctor_token');
 
-  // Redirect to login if no token — prevents 'Bearer null' requests that
-  // cause CORS errors (middleware rejects before CORS headers are set)
   useEffect(() => {
     if (!token) navigate('/login');
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch approved patients (Recent Patients list)
   const fetchMyPatients = useCallback(async () => {
     try {
       setLoadingPatients(true);
@@ -199,7 +394,6 @@ const DashboardPage = () => {
     }
   }, [token]);
 
-  // Fetch access requests (doctor's dashboard requests panel)
   const fetchAccessRequests = useCallback(async () => {
     try {
       setLoadingRequests(true);
@@ -216,19 +410,15 @@ const DashboardPage = () => {
   }, [token]);
 
   useEffect(() => {
-    // Load doctor info from localStorage
-    const name = localStorage.getItem('doctor_name');
+    const name  = localStorage.getItem('doctor_name');
     const email = localStorage.getItem('doctor_email');
-    if (name || email) {
-      setDoctorInfo({ name, email });
-    }
-
+    if (name || email) setDoctorInfo({ name, email });
     fetchMyPatients();
     fetchAccessRequests();
   }, [fetchMyPatients, fetchAccessRequests]);
 
   const handleNav = (key) => {
-    if (key === "profile") { navigate("/profile"); return; }
+    if (key === "profile")  { navigate("/profile");  return; }
     if (key === "patients") { navigate("/patients"); return; }
     setActiveNav(key);
   };
@@ -238,10 +428,10 @@ const DashboardPage = () => {
     localStorage.removeItem('doctor_id');
     localStorage.removeItem('doctor_name');
     localStorage.removeItem('doctor_email');
+    localStorage.removeItem('doctorData');
     navigate("/login");
   };
 
-  // Send access request to patient
   const handleRequestSubmit = async () => {
     if (!requestModal) return;
     try {
@@ -254,7 +444,7 @@ const DashboardPage = () => {
       const data = await res.json();
       if (data.success) {
         alert('Access request sent! The patient will be notified in their app.');
-        fetchAccessRequests(); // refresh the requests panel
+        fetchAccessRequests();
       } else {
         alert(data.message || 'Failed to send request');
       }
@@ -267,21 +457,45 @@ const DashboardPage = () => {
     }
   };
 
-  // Filter patients by search
+  // ── Emergency: fetch patient data directly, no patient approval needed ──
+  const handleEmergencySubmit = async (patientId, reason) => {
+    // 1. Try to fetch patient's critical data directly via emergency endpoint
+    const res = await fetch(`${API_URL}/api/doctors/emergency-access/${patientId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ reason, emergency: true })
+    });
+    const data = await res.json();
+
+    if (!data.success) throw new Error(data.message || 'Patient not found or access denied');
+
+    // 2. Log it as an emergency access request for audit trail
+    try {
+      await fetch(`${API_URL}/api/doctors/access-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ patient_id: patientId, message: `[EMERGENCY] ${reason}`, status: 'emergency' })
+      });
+      fetchAccessRequests();
+    } catch (_) { /* audit log failure shouldn't block access */ }
+
+    // 3. Close input modal, open data display modal
+    setShowEmergency(false);
+    setEmergencyData({ patient: data.patient, patientId, reason });
+  };
+
   const q = searchQuery.trim().toLowerCase();
   const filteredPatients = q
     ? myPatients.filter(p =>
-        p.name?.toLowerCase().includes(q) ||
-        p.patient_id?.toLowerCase().includes(q) ||
-        p.condition?.toLowerCase().includes(q)
+        safeStr(p.name).toLowerCase().includes(q) ||
+        safeStr(p.patient_id).toLowerCase().includes(q) ||
+        safeStr(p.condition).toLowerCase().includes(q)
       )
     : myPatients;
 
   const isSearching   = q.length > 0;
   const noRecentMatch = isSearching && filteredPatients.length === 0;
-
-  const doctorName = doctorInfo?.name || 'Doctor';
-  const hospital   = doctorInfo?.hospital || 'SafeMed';
+  const doctorName    = doctorInfo?.name || 'Doctor';
 
   return (
     <>
@@ -295,15 +509,14 @@ const DashboardPage = () => {
       `}</style>
 
       <div style={{ display: "flex", minHeight: "100vh", background: C.bg, fontFamily: F.body }}>
-
-        <Sidebar active={activeNav} onNav={handleNav} onLogout={handleLogout} doctorName={doctorName} />
+        <Sidebar active={activeNav} onNav={handleNav} onLogout={handleLogout} />
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: "100vh" }}>
 
           {/* Top bar */}
           <div style={{ background: C.white, borderBottom: `1px solid ${C.border}`, padding: "18px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "24px", flexShrink: 0 }}>
             <div>
-              <h1 style={{ fontSize: "22px", fontWeight: "800", color: C.textPrimary, fontFamily: F.display, margin: 0 }}>{hospital}</h1>
+              <h1 style={{ fontSize: "22px", fontWeight: "800", color: C.textPrimary, fontFamily: F.display, margin: 0 }}>SafeMed</h1>
               <p style={{ color: C.textSecondary, fontSize: "13px", margin: "3px 0 0", fontFamily: F.body }}>Welcome back, Dr. {doctorName}.</p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
@@ -323,12 +536,12 @@ const DashboardPage = () => {
             </div>
           </div>
 
-          {/* Page content */}
+          {/* Content */}
           <div style={{ padding: "28px 32px", flex: 1, animation: "fadeUp 0.4s ease" }}>
 
             {/* Search + Emergency */}
             <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "24px" }}>
-              <div style={{ flex: 1, height: "50px", background: C.white, borderRadius: "14px", border: `1.5px solid ${searchFocused ? C.primary : C.border}`, padding: "0 16px", display: "flex", alignItems: "center", gap: "10px", boxShadow: searchFocused ? "0 0 0 3px rgba(28,74,62,0.1)" : "0 2px 8px rgba(28,74,62,0.04)", transition: "border-color 0.2s, box-shadow 0.2s" }}>
+              <div style={{ flex: 1, height: "50px", background: C.white, borderRadius: "14px", border: `1.5px solid ${searchFocused ? C.primary : C.border}`, padding: "0 16px", display: "flex", alignItems: "center", gap: "10px", boxShadow: searchFocused ? "0 0 0 3px rgba(28,74,62,0.1)" : "0 2px 8px rgba(28,74,62,0.04)", transition: "border-color 0.2s,box-shadow 0.2s" }}>
                 <span style={{ color: searchFocused ? C.primary : C.textSecondary, display: "flex", flexShrink: 0 }}><SearchIcon /></span>
                 <input
                   value={searchQuery}
@@ -343,12 +556,15 @@ const DashboardPage = () => {
                 )}
               </div>
               <button onClick={() => setShowEmergency(true)}
-                style={{ height: "50px", padding: "0 22px", display: "flex", alignItems: "center", gap: "8px", background: "transparent", border: `1.5px solid ${C.error}`, borderRadius: "14px", cursor: "pointer", color: C.error, fontSize: "14px", fontWeight: "600", fontFamily: F.body, whiteSpace: "nowrap" }}>
+                style={{ height: "50px", padding: "0 22px", display: "flex", alignItems: "center", gap: "8px", background: "transparent", border: `1.5px solid ${C.error}`, borderRadius: "14px", cursor: "pointer", color: C.error, fontSize: "14px", fontWeight: "600", fontFamily: F.body, whiteSpace: "nowrap" }}
+                onMouseEnter={e => { e.currentTarget.style.background = C.errorBg; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+              >
                 <ShieldIcon size={16} /> Emergency Access
               </button>
             </div>
 
-            {/* Unknown patient card — shown when search doesn't match any known patient */}
+            {/* Unknown patient card */}
             {noRecentMatch && (
               <div style={{ marginBottom: "24px", animation: "slideIn 0.3s ease" }}>
                 <div style={{ background: C.white, borderRadius: "16px", border: `1.5px solid ${C.border}`, boxShadow: "0 4px 20px rgba(28,74,62,0.08)", overflow: "hidden" }}>
@@ -391,11 +607,9 @@ const DashboardPage = () => {
 
               {/* Recent Patients */}
               <div style={{ background: C.white, borderRadius: "16px", border: `1px solid ${C.border}`, boxShadow: "0 2px 8px rgba(28,74,62,0.06)", overflow: "hidden" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: `1px solid ${C.border}` }}>
-                  <div>
-                    <h2 style={{ fontSize: "16px", fontWeight: "700", color: C.textPrimary, fontFamily: F.display, margin: 0 }}>Recent Patients</h2>
-                    <p style={{ fontSize: "12px", color: C.textSecondary, margin: "2px 0 0", fontFamily: F.body }}>Patients with active consent</p>
-                  </div>
+                <div style={{ padding: "18px 20px", borderBottom: `1px solid ${C.border}` }}>
+                  <h2 style={{ fontSize: "16px", fontWeight: "700", color: C.textPrimary, fontFamily: F.display, margin: 0 }}>Recent Patients</h2>
+                  <p style={{ fontSize: "12px", color: C.textSecondary, margin: "2px 0 0", fontFamily: F.body }}>Patients with active consent</p>
                 </div>
                 {loadingPatients ? (
                   <div style={{ padding: "36px", textAlign: "center", color: C.textSecondary, fontFamily: F.body, fontSize: "14px" }}>Loading...</div>
@@ -405,18 +619,23 @@ const DashboardPage = () => {
                   </div>
                 ) : filteredPatients.map((p, i) => (
                   <div key={p.patient_id} className="patient-row"
+                    onClick={() => navigate(`/patients/${p.patient_id}`)}
                     style={{ display: "flex", alignItems: "center", padding: "14px 20px", borderBottom: i < filteredPatients.length - 1 ? `1px solid ${C.border}` : "none", cursor: "pointer", background: C.white }}>
-                    <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: avatarColor(p.name), display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "12px", fontWeight: "700", flexShrink: 0, marginRight: "12px" }}>
-                      {initials(p.name)}
+                    <div style={{ width: "40px", height: "40px", borderRadius: "50%", background: avatarColor(safeStr(p.name)), display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "12px", fontWeight: "700", flexShrink: 0, marginRight: "12px" }}>
+                      {initials(safeStr(p.name))}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: "14px", fontWeight: "600", color: C.textPrimary, fontFamily: F.display, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.name}</div>
+                      <div style={{ fontSize: "14px", fontWeight: "600", color: C.textPrimary, fontFamily: F.display, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {safeStr(p.name)}
+                      </div>
                       <div style={{ fontSize: "11px", color: C.textSecondary, marginTop: "2px", fontFamily: F.body }}>
-                        {p.age ? `${p.age} yrs` : ''}{p.gender ? ` | ${p.gender}` : ''} | ID: {p.patient_id}
+                        {p.age ? `${p.age} yrs` : ''}{p.gender ? ` | ${p.gender}` : ''} | ID: {safeStr(p.patient_id)}
                       </div>
                     </div>
                     <div style={{ flexShrink: 0, marginLeft: "8px" }}>
-                      <span style={{ fontSize: "13px", color: C.textSecondary, fontFamily: F.body }}>{(typeof p.condition === 'object' ? p.condition?.name : p.condition) || '—'}</span>
+                      <span style={{ fontSize: "13px", color: C.textSecondary, fontFamily: F.body }}>
+                        {safeStr(p.condition)}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -436,10 +655,16 @@ const DashboardPage = () => {
                   <div key={req.id} className="request-row"
                     style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "16px 20px", borderBottom: i < accessRequests.length - 1 ? `1px solid ${C.border}` : "none", background: C.white, gap: "12px" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: "14px", fontWeight: "700", color: C.textPrimary, fontFamily: F.display }}>{req.patient_name}</div>
-                      <div style={{ fontSize: "11px", color: C.textSecondary, marginTop: "2px", fontFamily: F.body }}>ID: {req.patient_id}</div>
+                      <div style={{ fontSize: "14px", fontWeight: "700", color: C.textPrimary, fontFamily: F.display }}>
+                        {safeStr(req.patient_name)}
+                      </div>
+                      <div style={{ fontSize: "11px", color: C.textSecondary, marginTop: "2px", fontFamily: F.body }}>
+                        ID: {safeStr(req.patient_id)}
+                      </div>
                       {req.message && (
-                        <div style={{ fontSize: "12px", color: C.textSecondary, marginTop: "5px", fontFamily: F.body, lineHeight: 1.4 }}>{req.message}</div>
+                        <div style={{ fontSize: "12px", color: req.message.startsWith('[EMERGENCY]') ? C.error : C.textSecondary, marginTop: "5px", fontFamily: F.body, lineHeight: 1.4 }}>
+                          {req.message}
+                        </div>
                       )}
                       <div style={{ fontSize: "11px", color: C.textSecondary, marginTop: "4px", fontFamily: F.body }}>
                         {new Date(req.requested_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -457,8 +682,33 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {showEmergency && <EmergencyModal onClose={() => setShowEmergency(false)} />}
-      {requestModal  && <RequestAccessModal patientId={requestModal} onClose={() => setRequestModal(null)} onSubmit={handleRequestSubmit} loading={requestLoading} />}
+      {/* Emergency input modal */}
+      {showEmergency && (
+        <EmergencyModal
+          onClose={() => setShowEmergency(false)}
+          onSubmit={handleEmergencySubmit}
+        />
+      )}
+
+      {/* Emergency data display modal */}
+      {emergencyData && (
+        <EmergencyDataModal
+          data={emergencyData.patient}
+          patientId={emergencyData.patientId}
+          reason={emergencyData.reason}
+          onClose={() => setEmergencyData(null)}
+        />
+      )}
+
+      {/* Normal access request modal */}
+      {requestModal && (
+        <RequestAccessModal
+          patientId={requestModal}
+          onClose={() => setRequestModal(null)}
+          onSubmit={handleRequestSubmit}
+          loading={requestLoading}
+        />
+      )}
     </>
   );
 };

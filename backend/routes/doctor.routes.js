@@ -4,7 +4,7 @@ const { verifyDoctorToken } = require('../middleware/authDoctor');
 
 const router = express.Router();
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+
 async function getDoctor(doctorId) {
   const { data, error } = await supabase
     .from('doctors').select('*').eq('doctor_id', doctorId).limit(1);
@@ -12,11 +12,6 @@ async function getDoctor(doctorId) {
   return data?.[0];
 }
 
-// ─── ACCESS REQUESTS (doctor side) ───────────────────────────────────────────
-// NOTE: These MUST come before /:doctorId to avoid wildcard interception
-
-// GET /api/doctors/access-requests
-// All requests this doctor has sent — shown on dashboard
 router.get('/access-requests', verifyDoctorToken, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -26,11 +21,14 @@ router.get('/access-requests', verifyDoctorToken, async (req, res) => {
       .order('requested_at', { ascending: false });
     if (error) throw error;
 
-    // Enrich with patient name
     const enriched = await Promise.all(data.map(async (r) => {
       const { data: pt } = await supabase
         .from('patients').select('name').eq('patient_id', r.patient_id).limit(1);
-      return { ...r, patient_name: pt?.[0]?.name || 'Unknown' };
+      const rawName = pt?.[0]?.name;
+      const patient_name = typeof rawName === 'object'
+        ? (rawName?.name || rawName?.full_name || 'Unknown')
+        : (rawName || 'Unknown');
+      return { ...r, patient_name };
     }));
 
     res.json({ success: true, requests: enriched });
@@ -41,27 +39,23 @@ router.get('/access-requests', verifyDoctorToken, async (req, res) => {
 });
 
 // POST /api/doctors/access-requests
-// Doctor sends an access request to a patient
 router.post('/access-requests', verifyDoctorToken, async (req, res) => {
   try {
     let { patient_id, message } = req.body;
     if (!patient_id)
       return res.status(400).json({ success: false, message: 'patient_id is required' });
 
-    // Normalize: uppercase and zero-pad to 4 digits (e.g. P9 → P0009, P009 → P0009)
     patient_id = patient_id.trim().toUpperCase();
     const numPart = patient_id.replace(/^[A-Z]+/, '');
     const prefix  = patient_id.replace(/[0-9]+$/, '');
     if (numPart) patient_id = prefix + numPart.padStart(4, '0');
 
-    // Check patient exists in patients table
     const { data: patient, error: pe } = await supabase
       .from('patients').select('patient_id').eq('patient_id', patient_id).limit(1);
     if (pe) throw pe;
     if (!patient?.length)
       return res.status(404).json({ success: false, message: 'Patient not found' });
 
-    // Block duplicate pending requests
     const { data: existing, error: ee } = await supabase
       .from('access_requests').select('id')
       .eq('doctor_id', req.doctorId).eq('patient_id', patient_id).eq('status', 'pending').limit(1);
@@ -89,7 +83,73 @@ router.post('/access-requests', verifyDoctorToken, async (req, res) => {
   }
 });
 
-// ─── PATIENT SEARCH (before requesting access) ────────────────────────────────
+// POST /api/doctors/emergency-access/:patientId
+// Break-glass: bypasses consent, returns critical data immediately, logs the access
+router.post('/emergency-access/:patientId', verifyDoctorToken, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    let { patientId } = req.params;
+
+    if (!reason?.trim())
+      return res.status(400).json({ success: false, message: 'Reason is required for emergency access' });
+
+    // Normalise patient ID format (e.g. P9 → P0009)
+    patientId = patientId.trim().toUpperCase();
+    const numPart = patientId.replace(/^[A-Z]+/, '');
+    const prefix  = patientId.replace(/[0-9]+$/, '');
+    if (numPart) patientId = prefix + numPart.padStart(4, '0');
+
+    // Fetch patient — no consent check, this is emergency
+    const { data, error } = await supabase
+      .from('patients')
+      .select('patient_id, name, demographics, allergies, conditions, medications, vaccination_records')
+      .eq('patient_id', patientId)
+      .limit(1);
+
+    if (error) throw error;
+    if (!data?.length)
+      return res.status(404).json({ success: false, message: `Patient ${patientId} not found in the system.` });
+
+    const p = data[0];
+
+    // Ensure name is always a plain string
+    const name = typeof p.name === 'object'
+      ? (p.name?.name || p.name?.full_name || 'Unknown')
+      : (p.name || 'Unknown');
+
+    // Log emergency access for audit trail
+    try {
+      await supabase.from('access_requests').insert([{
+        doctor_id:    req.doctorId,
+        patient_id:   patientId,
+        status:       'emergency',
+        message:      `[EMERGENCY] ${reason.trim()}`,
+        requested_at: new Date().toISOString(),
+      }]);
+    } catch (logErr) {
+      console.warn('Emergency audit log failed (non-fatal):', logErr.message);
+    }
+
+    console.log(`🚨 EMERGENCY ACCESS: Doctor ${req.doctorId} → Patient ${patientId} | Reason: ${reason}`);
+
+    res.json({
+      success: true,
+      patient: {
+        name,
+        patient_id:          p.patient_id,
+        demographics:        p.demographics,
+        allergies:           p.allergies,
+        conditions:          p.conditions,
+        medications:         p.medications,
+        vaccination_records: p.vaccination_records,
+      }
+    });
+
+  } catch (error) {
+    console.error('Emergency access error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
 
 // GET /api/doctors/patients/search?patient_id=P0001
 router.get('/patients/search', verifyDoctorToken, async (req, res) => {
@@ -98,7 +158,6 @@ router.get('/patients/search', verifyDoctorToken, async (req, res) => {
     if (!patient_id)
       return res.status(400).json({ success: false, message: 'patient_id is required' });
 
-    // Normalize: uppercase and zero-pad to 4 digits (e.g. P9 → P0009, P009 → P0009)
     patient_id = patient_id.trim().toUpperCase();
     const numPart = patient_id.replace(/^[A-Z]+/, '');
     const prefix  = patient_id.replace(/[0-9]+$/, '');
@@ -117,17 +176,19 @@ router.get('/patients/search', verifyDoctorToken, async (req, res) => {
     const demo = typeof p.demographics === 'string'
       ? JSON.parse(p.demographics || '{}') : (p.demographics || {});
 
+    const name = typeof p.name === 'object'
+      ? (p.name?.name || p.name?.full_name || 'Unknown')
+      : (p.name || 'Unknown');
+
     res.json({
       success: true,
-      patient: { patient_id: p.patient_id, name: p.name, gender: demo.gender || null, bloodType: demo.bloodType || null }
+      patient: { patient_id: p.patient_id, name, gender: demo.gender || null, bloodType: demo.bloodType || null }
     });
   } catch (error) {
     console.error('Error searching patient:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
-
-// ─── MY PATIENTS (approved) ───────────────────────────────────────────────────
 
 // GET /api/doctors/my-patients
 router.get('/my-patients', verifyDoctorToken, async (req, res) => {
@@ -149,12 +210,25 @@ router.get('/my-patients', verifyDoctorToken, async (req, res) => {
     const result = patients.map(p => {
       const demo  = typeof p.demographics === 'string' ? JSON.parse(p.demographics || '{}') : (p.demographics || {});
       const conds = typeof p.conditions   === 'string' ? JSON.parse(p.conditions   || '[]') : (p.conditions   || []);
+
+      const name = typeof p.name === 'object'
+        ? (p.name?.name || p.name?.full_name || 'Unknown')
+        : (p.name || 'Unknown');
+
+      const condition = (() => {
+        const c = conds[0];
+        if (!c) return null;
+        if (typeof c === 'object') return c.name || c.condition || c.label || null;
+        return c;
+      })();
+
       return {
-        patient_id: p.patient_id, name: p.name,
+        patient_id: p.patient_id,
+        name,
         age:       demo.dob ? Math.floor((new Date() - new Date(demo.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : null,
         gender:    demo.gender    || null,
         bloodType: demo.bloodType || null,
-        condition: (typeof conds[0] === "object" ? conds[0]?.name : conds[0]) || null,
+        condition,
       };
     });
 
@@ -164,8 +238,6 @@ router.get('/my-patients', verifyDoctorToken, async (req, res) => {
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
-
-// ─── FULL PATIENT RECORDS (approved only) ─────────────────────────────────────
 
 // GET /api/doctors/patients/:patientId/records
 router.get('/patients/:patientId/records', verifyDoctorToken, async (req, res) => {
@@ -189,13 +261,12 @@ router.get('/patients/:patientId/records', verifyDoctorToken, async (req, res) =
   }
 });
 
-// ─── ADD CONSULTATION ─────────────────────────────────────────────────────────
-
 // POST /api/doctors/patients/:patientId/consultation
 router.post('/patients/:patientId/consultation', verifyDoctorToken, async (req, res) => {
   try {
     const { patientId } = req.params;
-    const { date, notes, diagnosis, prescription } = req.body;
+    const { date, notes, diagnosis, prescription, reason_for_visit, severity, icd_code, secondary_diagnosis } = req.body;
+
     if (!date || !notes)
       return res.status(400).json({ success: false, message: 'Date and notes are required' });
 
@@ -205,20 +276,78 @@ router.post('/patients/:patientId/consultation', verifyDoctorToken, async (req, 
     if (!approval?.length)
       return res.status(403).json({ success: false, message: 'Access not approved by patient' });
 
-    const { data, error } = await supabase
-      .from('consultations')
-      .insert([{ patient_id: patientId, doctor_id: req.doctorId, date, notes, diagnosis: diagnosis || '', prescription: prescription || '', created_at: new Date().toISOString() }])
-      .select();
-    if (error) throw error;
+    const { data: doctorRows, error: doctorError } = await supabase
+      .from('doctors')
+      .select('name, demographics')
+      .eq('doctor_id', req.doctorId)
+      .limit(1);
+    if (doctorError) throw doctorError;
 
-    res.status(201).json({ success: true, message: 'Consultation added', consultation: data[0] });
+    const doctor = doctorRows?.[0] || {};
+
+    const doctorName = typeof doctor.name === 'object'
+      ? (doctor.name?.name || doctor.name?.full_name || 'Doctor')
+      : (doctor.name || 'Doctor');
+
+    const doctorDemo = typeof doctor.demographics === 'string'
+      ? JSON.parse(doctor.demographics || '{}')
+      : (doctor.demographics || {});
+    const hospital = doctorDemo.hospital || doctorDemo.clinic || doctorDemo.workplace || 'Hospital';
+
+    const consultationId = `CONS-${Date.now()}`;
+    const newConsultation = {
+      consultation_id:     consultationId,
+      date:                date,
+      hospital:            hospital,
+      doctor:              `Dr. ${doctorName}`,
+      reason_for_visit:    reason_for_visit || notes,
+      diagnosis:           diagnosis || '',
+      secondary_diagnosis: secondary_diagnosis || '',
+      icd_code:            icd_code || '',
+      severity:            severity || '',
+      prescription:        prescription || '',
+      clinical_findings:   notes,
+      created_at:          new Date().toISOString(),
+    };
+
+    const { data: patientRows, error: fetchError } = await supabase
+      .from('patients')
+      .select('consultations')
+      .eq('patient_id', patientId)
+      .limit(1);
+    if (fetchError) throw fetchError;
+    if (!patientRows?.length)
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    const existing = (() => {
+      const v = patientRows[0].consultations;
+      if (Array.isArray(v)) return v;
+      if (typeof v === 'string') { try { return JSON.parse(v); } catch { return []; } }
+      return v || [];
+    })();
+
+    const updated = [newConsultation, ...existing];
+
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ consultations: JSON.stringify(updated) })
+      .eq('patient_id', patientId);
+    if (updateError) throw updateError;
+
+    console.log(`✅ Consultation saved for patient ${patientId} by doctor ${req.doctorId}`);
+    res.status(201).json({
+      success: true,
+      message: 'Consultation saved successfully',
+      consultation: newConsultation,
+    });
+
   } catch (error) {
     console.error('Error adding consultation:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });
 
-// ─── GET /api/doctors/:doctorId ───────────────────────────────────────────────
+// GET /api/doctors/:doctorId
 router.get('/:doctorId', verifyDoctorToken, async (req, res) => {
   try {
     if (req.doctorId !== req.params.doctorId)
@@ -227,11 +356,15 @@ router.get('/:doctorId', verifyDoctorToken, async (req, res) => {
     const doctor = await getDoctor(req.params.doctorId);
     if (!doctor) return res.status(404).json({ success: false, message: 'Doctor not found' });
 
+    const name = typeof doctor.name === 'object'
+      ? (doctor.name?.name || doctor.name?.full_name || 'Doctor')
+      : (doctor.name || 'Doctor');
+
     res.json({
       success: true,
       doctor: {
         doctor_id:          doctor.doctor_id,
-        name:               doctor.name,
+        name,
         demographics:       doctor.demographics       || {},
         license_id:         doctor.license_id         || '',
         specializations:    doctor.specializations    || [],
@@ -247,7 +380,7 @@ router.get('/:doctorId', verifyDoctorToken, async (req, res) => {
   }
 });
 
-// ─── PUT /api/doctors/:doctorId/demographics ──────────────────────────────────
+// PUT /api/doctors/:doctorId/demographics
 router.put('/:doctorId/demographics', verifyDoctorToken, async (req, res) => {
   try {
     if (req.doctorId !== req.params.doctorId)
@@ -280,7 +413,7 @@ router.put('/:doctorId/demographics', verifyDoctorToken, async (req, res) => {
   }
 });
 
-// ─── PUT /api/doctors/:doctorId/license ───────────────────────────────────────
+// PUT /api/doctors/:doctorId/license
 router.put('/:doctorId/license', verifyDoctorToken, async (req, res) => {
   try {
     if (req.doctorId !== req.params.doctorId)
@@ -307,8 +440,7 @@ router.put('/:doctorId/license', verifyDoctorToken, async (req, res) => {
   }
 });
 
-// ─── SPECIALIZATIONS ──────────────────────────────────────────────────────────
-
+// SPECIALIZATIONS
 router.get('/:doctorId/specializations', verifyDoctorToken, async (req, res) => {
   try {
     if (req.doctorId !== req.params.doctorId)
@@ -383,8 +515,7 @@ router.delete('/:doctorId/specializations', verifyDoctorToken, async (req, res) 
   }
 });
 
-// ─── CREDENTIALS ──────────────────────────────────────────────────────────────
-
+// CREDENTIALS
 router.get('/:doctorId/credentials', verifyDoctorToken, async (req, res) => {
   try {
     if (req.doctorId !== req.params.doctorId)
@@ -456,8 +587,7 @@ router.delete('/:doctorId/credentials/:credId', verifyDoctorToken, async (req, r
   }
 });
 
-// ─── CONSULTATION HOURS ───────────────────────────────────────────────────────
-
+// CONSULTATION HOURS
 router.get('/:doctorId/consultation-hours', verifyDoctorToken, async (req, res) => {
   try {
     if (req.doctorId !== req.params.doctorId)

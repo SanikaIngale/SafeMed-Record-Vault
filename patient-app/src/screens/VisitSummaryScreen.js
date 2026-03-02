@@ -64,16 +64,25 @@ const VisitSummaryScreen = ({ navigation, route }) => {
   const date = formatDate(consultation?.date);
   const reasonForVisit = consultation?.reason_for_visit || 'N/A';
   const diagnosis = consultation?.diagnosis || 'N/A';
-  const doctorNotes = consultation?.doctor_notes || 'No additional notes';
+
+  // clinical_findings is saved by doctor web, doctor_notes is legacy field
+  const doctorNotes = consultation?.clinical_findings || consultation?.doctor_notes || 'No additional notes';
+
   const nextSteps = consultation?.next_steps || '';
   const followUpDate = consultation?.follow_up_date ? formatDate(consultation.follow_up_date) : null;
 
+  // severity and icd_code saved by doctor web
+  const severity = consultation?.severity || '';
+  const icdCode = consultation?.icd_code || '';
+  const secondaryDiagnosis = consultation?.secondary_diagnosis || '';
+
   // Parse lab reports (format: "Test Name, File Path")
-  const labReports = consultation?.lab_reports 
+  const labReports = consultation?.lab_reports
     ? consultation.lab_reports.split(',').filter(item => item.trim() && !item.includes('/uploads/'))
     : [];
 
-  const hasAttachments = consultation?.prescriptions || labReports.length > 0;
+  // prescription (singular) saved by doctor web, prescriptions (plural) is legacy
+  const hasAttachments = consultation?.prescription || consultation?.prescriptions || labReports.length > 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -98,13 +107,13 @@ const VisitSummaryScreen = ({ navigation, route }) => {
             </View>
             <View style={styles.doctorInfo}>
               <Text style={styles.doctorName}>{doctorName}</Text>
-              {doctorSpecialization && (
+              {doctorSpecialization ? (
                 <Text style={styles.specializationText}>{doctorSpecialization}</Text>
-              )}
+              ) : null}
               <Text style={styles.clinicName}>{hospital}</Text>
-              {department && (
+              {department ? (
                 <Text style={styles.departmentText}>{department}</Text>
-              )}
+              ) : null}
               <Text style={styles.dateText}>{date}</Text>
             </View>
           </View>
@@ -119,7 +128,29 @@ const VisitSummaryScreen = ({ navigation, route }) => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Diagnosis</Text>
             <Text style={styles.sectionText}>{diagnosis}</Text>
+            {secondaryDiagnosis ? (
+              <Text style={[styles.sectionText, { marginTop: 6, color: '#555' }]}>
+                Secondary: {secondaryDiagnosis}
+              </Text>
+            ) : null}
+            {icdCode ? (
+              <Text style={[styles.sectionText, { marginTop: 4, color: '#888', fontSize: 12 }]}>
+                ICD Code: {icdCode}
+              </Text>
+            ) : null}
           </View>
+
+          {severity ? (
+            <>
+              <View style={styles.divider} />
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Severity</Text>
+                <View style={styles.severityBadge}>
+                  <Text style={styles.severityText}>{severity}</Text>
+                </View>
+              </View>
+            </>
+          ) : null}
 
           <View style={styles.divider} />
 
@@ -128,7 +159,7 @@ const VisitSummaryScreen = ({ navigation, route }) => {
             <Text style={styles.sectionText}>{doctorNotes}</Text>
           </View>
 
-          {nextSteps && (
+          {nextSteps ? (
             <>
               <View style={styles.divider} />
               <View style={styles.section}>
@@ -136,9 +167,9 @@ const VisitSummaryScreen = ({ navigation, route }) => {
                 <Text style={styles.sectionText}>{nextSteps}</Text>
               </View>
             </>
-          )}
+          ) : null}
 
-          {followUpDate && (
+          {followUpDate ? (
             <>
               <View style={styles.divider} />
               <View style={styles.section}>
@@ -146,31 +177,32 @@ const VisitSummaryScreen = ({ navigation, route }) => {
                 <Text style={styles.sectionText}>{followUpDate}</Text>
               </View>
             </>
-          )}
+          ) : null}
 
-          {hasAttachments && (
+          {hasAttachments ? (
             <>
               <View style={styles.divider} />
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Attachments</Text>
                 <View style={styles.attachmentsContainer}>
-                  {consultation?.prescriptions && (
-                    <AttachmentCard 
-                      attachment="Prescription" 
+                  {(consultation?.prescription || consultation?.prescriptions) ? (
+                    <AttachmentCard
+                      attachment="Prescription"
                       type="prescription"
                     />
-                  )}
+                  ) : null}
                   {labReports.map((report, index) => (
-                    <AttachmentCard 
+                    <AttachmentCard
                       key={index}
-                      attachment={report.trim()} 
+                      attachment={report.trim()}
                       type="lab_report"
                     />
                   ))}
                 </View>
               </View>
             </>
-          )}
+          ) : null}
+
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -291,6 +323,21 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#e0e0e0',
     marginBottom: 20,
+  },
+  severityBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#E8F5E9',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderWidth: 1,
+    borderColor: '#A5D6A7',
+  },
+  severityText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#2E7D32',
+    fontFamily: 'Poppins_600SemiBold',
   },
   attachmentsContainer: {
     flexDirection: 'row',

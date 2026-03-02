@@ -1,9 +1,9 @@
-import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import AuthLayout, { Logo } from "../../components/AuthLayout";
-import InputField from "../../components/InputField";
 import Button from "../../components/Button";
-import { palette, fonts } from "../../styles/theme";
+import InputField from "../../components/InputField";
+import { fonts, palette } from "../../styles/theme";
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5001/api";
 
@@ -66,10 +66,11 @@ const LoginPage = () => {
       }
 
       // Persist token + doctor info for downstream pages
-      localStorage.setItem("doctor_token", data.token);
-      localStorage.setItem("doctor_id",    data.doctor.doctor_id);
-      localStorage.setItem("doctor_name",  data.doctor.name);
-      localStorage.setItem("doctor_email", data.doctor.email);
+     localStorage.setItem("doctor_token", data.token);
+localStorage.setItem("doctor_id",    data.doctor.doctor_id);
+localStorage.setItem("doctor_name",  data.doctor.name);
+localStorage.setItem("doctor_email", data.doctor.email);
+localStorage.setItem("doctorData",   JSON.stringify(data.doctor)); // ← ADD THIS
 
       navigate("/dashboard");
     } catch (err) {

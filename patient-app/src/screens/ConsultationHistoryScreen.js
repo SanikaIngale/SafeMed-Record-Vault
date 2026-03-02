@@ -20,22 +20,39 @@ import {
   View,
 } from 'react-native';
 import BottomNavigation from '../components/BottomNavigation';
-import { API_URL, apiCall } from '../config/api';
+import { API_URL } from '../config/api';
+
 const API_BASE_URL = API_URL;
+
+const formatDate = (dateString) => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  const day = date.getDate().toString().padStart(2, '0');
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  return `${day} ${month} ${year}`;
+};
 
 const ConsultationCard = ({ consultation, onPress }) => (
   <TouchableOpacity style={styles.card} onPress={onPress}>
     <View style={styles.cardContent}>
-      <Text style={styles.clinicLabel}>{consultation.hospital}</Text>
+      <Text style={styles.clinicLabel}>{consultation.hospital || 'Hospital'}</Text>
       <Text style={styles.cardLabel}>
-        Doctor: <Text style={styles.cardValue}>{consultation.doctor.name}</Text>
+        Doctor: <Text style={styles.cardValue}>{consultation.doctor?.name || 'N/A'}</Text>
       </Text>
       <Text style={styles.cardLabel}>
-        Reason: <Text style={styles.cardValue}>{consultation.reason_for_visit}</Text>
+        Reason: <Text style={styles.cardValue}>{consultation.reason_for_visit || 'N/A'}</Text>
       </Text>
+      {consultation.diagnosis ? (
+        <Text style={styles.cardLabel}>
+          Diagnosis: <Text style={styles.cardValue}>{consultation.diagnosis}</Text>
+        </Text>
+      ) : null}
       <View style={styles.dateRow}>
         <Text style={styles.cardLabel}>
-          Date: <Text style={styles.cardValue}>{consultation.date}</Text>
+          Date: <Text style={styles.cardValue}>{formatDate(consultation.date)}</Text>
         </Text>
         <TouchableOpacity style={styles.detailsButton} onPress={onPress}>
           <Text style={styles.detailsButtonText}>View Details</Text>
@@ -65,33 +82,49 @@ const ConsultationHistoryScreen = ({ navigation }) => {
     try {
       setLoading(true);
 
-      // Get user email from AsyncStorage
-      const email = await AsyncStorage.getItem('userEmail');
-      
-      if (!email) {
-        Alert.alert('Error', 'Please login again');
-        navigation.replace('SignIn');
-        return;
+      // Try patient_id directly first (faster)
+      let patientId = await AsyncStorage.getItem('patient_id');
+
+      if (!patientId) {
+        // Fall back to looking up via email
+        const email = await AsyncStorage.getItem('userEmail');
+        if (!email) {
+          Alert.alert('Error', 'Please login again');
+          navigation.replace('SignIn');
+          return;
+        }
+
+        const userResponse = await fetch(`${API_BASE_URL}/api/user/email/${email}`);
+        const userData = await userResponse.json();
+
+        if (!userData.success || !userData.patient_id) {
+          throw new Error('Failed to fetch user data');
+        }
+
+        patientId = userData.patient_id;
+        await AsyncStorage.setItem('patient_id', patientId);
       }
 
-      // Step 1: Get patient_id from users table
-      const userResponse = await fetch(`${API_BASE_URL}/user/email/${email}`);
-      const userData = await userResponse.json();
-
-      if (!userData.success) {
-        throw new Error('Failed to fetch user data');
-      }
-
-      const patientId = userData.patient_id;
-
-      // Step 2: Get patient data including consultations
-      const patientResponse = await fetch(`${API_BASE_URL}/patients/${patientId}`);
+      // Get patient data including consultations
+      const patientResponse = await fetch(`${API_BASE_URL}/api/patients/${patientId}`);
       const patientData = await patientResponse.json();
 
-      if (patientData.success) {
-        setConsultations(patientData.consultations || []);
-        console.log('✅ Consultations loaded:', patientData.consultations?.length || 0);
-      }
+     if (patientData.success) {
+  // Parse consultations — may come as string from DB
+  let raw = patientData.consultations || [];
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch { raw = []; }
+  }
+  if (!Array.isArray(raw)) raw = [];
+
+  const sorted = raw.sort(
+    (a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at)
+  );
+  setConsultations(sorted);
+  console.log('✅ Consultations loaded:', sorted.length);
+} else {
+  throw new Error(patientData.message || 'Failed to load consultations');
+}
 
     } catch (error) {
       console.error('❌ Error loading consultations:', error);
@@ -107,10 +140,6 @@ const ConsultationHistoryScreen = ({ navigation }) => {
     loadConsultations();
   };
 
-  if (!fontsLoaded) {
-    return null;
-  }
-
   const handleViewDetails = (consultation) => {
     navigation.navigate('VisitSummary', { consultation });
   };
@@ -118,6 +147,10 @@ const ConsultationHistoryScreen = ({ navigation }) => {
   const handleNavigation = (navName) => {
     setActiveNav(navName);
   };
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   if (loading) {
     return (
@@ -152,19 +185,25 @@ const ConsultationHistoryScreen = ({ navigation }) => {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1E4B46']} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#1E4B46']}
+          />
         }
       >
         {consultations.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Icon name="clipboard-text-outline" size={64} color="#ccc" />
             <Text style={styles.emptyText}>No consultation records yet</Text>
-            <Text style={styles.emptySubtext}>Your consultation history will appear here</Text>
+            <Text style={styles.emptySubtext}>
+              Your consultation history will appear here
+            </Text>
           </View>
         ) : (
-          consultations.map((consultation) => (
+          consultations.map((consultation, index) => (
             <ConsultationCard
-              key={consultation.consultation_id}
+              key={consultation.consultation_id || index}
               consultation={consultation}
               onPress={() => handleViewDetails(consultation)}
             />
@@ -172,9 +211,8 @@ const ConsultationHistoryScreen = ({ navigation }) => {
         )}
       </ScrollView>
 
-      {/* Bottom Navigation */}
-      <BottomNavigation 
-        activeNav={activeNav} 
+      <BottomNavigation
+        activeNav={activeNav}
         onNavigate={handleNavigation}
         navigation={navigation}
       />
