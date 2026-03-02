@@ -104,6 +104,9 @@ export default function ReportsPage({ navigation }) {
           fileType: 'PDF',
           size: '—',
           file_path: pdf.file_path,
+          is_doctor_upload: pdf.is_doctor_upload || false,
+          uploaded_by: pdf.uploaded_by || null,
+          uploaded_by_name: pdf.uploaded_by_name || null,
         }));
         setReports(mapped);
       } else {
@@ -193,6 +196,9 @@ export default function ReportsPage({ navigation }) {
           fileType: 'PDF',
           size: selectedFile.size ? `${(selectedFile.size / 1024 / 1024).toFixed(1)} MB` : '—',
           file_path: data.pdf.file_path,
+          is_doctor_upload: data.pdf.is_doctor_upload || false,
+          uploaded_by: data.pdf.uploaded_by || null,
+          uploaded_by_name: data.pdf.uploaded_by_name || null,
         };
         setReports(prev => [newReport, ...prev]);
         setUploadModal(false);
@@ -514,11 +520,12 @@ export default function ReportsPage({ navigation }) {
                 { icon: 'medkit-outline',   label: 'Type', val: selectedReport.type },
                 { icon: 'document-outline', label: 'File', val: selectedReport.fileType },
                 { icon: 'save-outline',     label: 'Size', val: selectedReport.size },
+                { icon: 'person-outline',   label: 'Source', val: (selectedReport.is_doctor_upload || selectedReport.uploaded_by) ? 'Doctor' : 'You' },
               ].map(row => (
                 <View key={row.label} style={styles.detailRow}>
                   <Ionicons name={row.icon} size={18} color="#1E4B46" />
                   <Text style={styles.detailRowLabel}>{row.label}</Text>
-                  <Text style={styles.detailRowVal}>{row.val}</Text>
+                  <Text style={[styles.detailRowVal, row.label === 'Source' && { color: (selectedReport.is_doctor_upload || selectedReport.uploaded_by) ? '#1E4B46' : '#777' }]}>{row.val}</Text>
                 </View>
               ))}
 
@@ -555,6 +562,8 @@ export default function ReportsPage({ navigation }) {
 
 function ReportCard({ report, onPress }) {
   const icon = TYPE_ICON[report.type] || 'document-text';
+  const isDocUploaded = report.is_doctor_upload || report.uploaded_by;
+
   return (
     <TouchableOpacity style={styles.reportCard} onPress={onPress} activeOpacity={0.82}>
       <View style={styles.reportIconBox}>
@@ -568,6 +577,13 @@ function ReportCard({ report, onPress }) {
           <Text style={styles.reportDate}>{report.date}</Text>
           <View style={styles.reportTypeDot} />
           <Text style={styles.reportTypeText}>{report.type}</Text>
+          {isDocUploaded && (
+            <>
+              <View style={styles.reportTypeDot} />
+              <Ionicons name="document-text-outline" size={11} color="#1E4B46" />
+              <Text style={[styles.reportTypeText, { color: '#1E4B46', fontWeight: '600' }]}>Doctor</Text>
+            </>
+          )}
         </View>
       </View>
       <View style={styles.reportRight}>

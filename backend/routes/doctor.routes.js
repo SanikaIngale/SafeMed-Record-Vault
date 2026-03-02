@@ -625,4 +625,98 @@ router.put('/:doctorId/consultation-hours', verifyDoctorToken, async (req, res) 
   }
 });
 
+// POST /api/doctors/patients/:patientId/reports/upload
+// Doctor uploads a report for a patient they have approved access to
+router.post('/patients/:patientId/reports/upload', verifyDoctorToken, async (req, res) => {
+  try {
+    const { patientId } = req.params;
+    const { fileBase64, fileName, mimeType, title, lab, type, date } = req.body;
+
+    if (!fileBase64 || !title || !fileName)
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+
+    // ✅ Verify that the doctor has approved access to this patient
+    const { data: accessData, error: accessError } = await supabase
+      .from('access_requests')
+      .select('status')
+      .eq('doctor_id', req.doctorId)
+      .eq('patient_id', patientId)
+      .limit(1);
+
+    if (accessError) throw accessError;
+
+    if (!accessData?.length || accessData[0].status !== 'approved')
+      return res.status(403).json({ success: false, message: 'You do not have approved access to this patient' });
+
+    // ✅ Verify patient exists
+    const { data: patients, error: patientError } = await supabase
+      .from('patients')
+      .select('pdfs')
+      .eq('patient_id', patientId)
+      .limit(1);
+
+    if (patientError) throw patientError;
+    if (!patients?.length) return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    // ✅ Upload file to storage
+    const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const id = Date.now();
+    const filePath = `${patientId}/${id}_${safeName}`;
+
+    const buffer = Buffer.from(fileBase64, 'base64');
+    const { error: storageError } = await supabase.storage
+      .from('medical-records')
+      .upload(filePath, buffer, { 
+        contentType: mimeType || 'application/pdf', 
+        upsert: false 
+      });
+
+    if (storageError) throw storageError;
+
+    // ✅ Get doctor info for metadata
+    const { data: doctorData, error: doctorError } = await supabase
+      .from('doctors')
+      .select('name')
+      .eq('doctor_id', req.doctorId)
+      .limit(1);
+
+    if (doctorError) throw doctorError;
+    const doctorName = doctorData?.[0]?.name || 'Unknown';
+
+    // ✅ Add PDF to patient's pdfs array
+    const existingPdfs = (typeof patients[0].pdfs === 'string' 
+      ? JSON.parse(patients[0].pdfs || '[]')
+      : (patients[0].pdfs || []));
+
+    const newPdf = {
+      id,
+      title,
+      lab: lab || '',
+      type: type || 'Other',
+      date,
+      file_path: filePath,
+      file_name: fileName,
+      uploaded_at: new Date().toISOString(),
+      uploaded_by: req.doctorId,
+      uploaded_by_name: doctorName,
+      is_doctor_upload: true  // Flag to indicate this is a doctor upload
+    };
+
+    existingPdfs.unshift(newPdf);
+
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ pdfs: JSON.stringify(existingPdfs) })
+      .eq('patient_id', patientId);
+
+    if (updateError) throw updateError;
+
+    console.log(`Doctor ${req.doctorId} uploaded report for patient ${patientId}`);
+    res.status(201).json({ success: true, pdf: newPdf });
+  } catch (error) {
+    console.error('Doctor report upload error:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
 module.exports = router;

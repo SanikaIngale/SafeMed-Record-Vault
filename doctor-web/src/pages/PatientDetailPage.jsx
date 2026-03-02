@@ -179,6 +179,14 @@ const PatientDetailPage = () => {
   const prescRef = useRef();
   const labRef   = useRef();
 
+  // ── Report Upload State ────────────────────────────────────────────────────
+  const [reportUploadFile, setReportUploadFile] = useState(null);
+  const [uploadingReport, setUploadingReport]   = useState(false);
+  const [reportUploadForm, setReportUploadForm] = useState({
+    title: "", lab: "", type: "Lab Report", date: new Date().toLocaleDateString("en-GB"),
+  });
+  const reportFileRef = useRef();
+
   const triggerSave = (msg) => { setSaved(msg); setTimeout(() => setSaved(""), 3000); };
 
   useEffect(() => {
@@ -270,6 +278,66 @@ const PatientDetailPage = () => {
     if (!f) return;
     setPrescImages(p => [...p, { name:f.name, url:URL.createObjectURL(f) }]);
     e.target.value = "";
+  };
+
+  // ── Report Upload Handler ──────────────────────────────────────────────────
+  const handleReportUpload = async () => {
+    if (!reportUploadFile) {
+      alert("Please select a file");
+      return;
+    }
+    if (!reportUploadForm.title.trim() || !reportUploadForm.lab.trim()) {
+      alert("Please fill in report title and lab name");
+      return;
+    }
+
+    setUploadingReport(true);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target.result.split(",")[1];
+        const token = localStorage.getItem("doctor_token");
+        
+        const response = await fetch(`${API_URL}/api/doctors/patients/${id}/reports/upload`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            fileBase64: base64,
+            fileName: reportUploadFile.name,
+            mimeType: reportUploadFile.type || "application/pdf",
+            title: reportUploadForm.title,
+            lab: reportUploadForm.lab,
+            type: reportUploadForm.type,
+            date: reportUploadForm.date,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok || !data.success) {
+          throw new Error(data.message || "Failed to upload report");
+        }
+
+        // Reload patient data to show the new report
+        const patRes = await fetch(`${API_URL}/api/doctors/patients/${id}/records`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const patData = await patRes.json();
+        if (patData.success) setPatient(patData);
+
+        triggerSave("Report uploaded");
+        setReportUploadFile(null);
+        setReportUploadForm({ title: "", lab: "", type: "Lab Report", date: new Date().toLocaleDateString("en-GB") });
+        reportFileRef.current.value = "";
+      };
+      reader.readAsDataURL(reportUploadFile);
+    } catch (err) {
+      alert("Upload failed: " + err.message);
+    } finally {
+      setUploadingReport(false);
+    }
   };
 
   const scBadge = s => {
@@ -376,19 +444,80 @@ const PatientDetailPage = () => {
           <div style={{ flex:1, overflow:"auto", padding:"24px 32px", animation:"fadeUp 0.3s ease" }}>
 
             {/* Patient banner */}
-            <div style={{ background:C.white, borderRadius:"16px", border:`1px solid ${C.border}`, overflow:"hidden", marginBottom:"20px", boxShadow:"0 2px 8px rgba(28,74,62,0.05)", position:"relative" }}>
-              <div style={{ height:"110px", background:`linear-gradient(135deg, ${C.primary} 0%, #2D6A5A 65%, #3D8B6E 100%)` }} />
-              <div style={{ position:"absolute", top:"66px", left:"28px", width:"80px", height:"80px", borderRadius:"50%", background:avatarColor(patient.name||""), border:"4px solid #fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"22px", fontWeight:"800", color:"#fff", boxShadow:"0 4px 14px rgba(0,0,0,0.18)", zIndex:1 }}>
-                {getInitials(patient.name||"")}
-              </div>
-              <div style={{ padding:"10px 28px 22px 128px", minHeight:"72px" }}>
-                <h2 style={{ fontSize:"20px", fontWeight:"800", color:C.textPrimary, fontFamily:F.display, margin:"0 0 3px" }}>{patient.name || "Unknown Patient"}</h2>
-                <p style={{ fontSize:"13px", color:C.textSecondary, margin:"0 0 10px" }}>
-                  {age ? `${age} yrs` : ""}{gender !== "—" ? ` | ${gender}` : ""} | ID: {patient.patient_id}
-                </p>
-                <span style={{ display:"inline-flex", alignItems:"center", gap:"5px", fontSize:"12px", fontWeight:"600", color:"#2E7D32", background:"#E8F5E9", border:"1.5px solid #A5D6A7", padding:"4px 12px", borderRadius:"999px" }}>
-                  <CheckSmIcon /> Consent Active
-                </span>
+            <div
+              style={{
+                background: `linear-gradient(135deg, ${C.primary} 0%, #2D6A5A 65%, #3D8B6E 100%)`,
+                borderRadius: "16px",
+                border: `1px solid ${C.border}`,
+                overflow: "hidden",
+                marginBottom: "20px",
+                boxShadow: "0 2px 8px rgba(28,74,62,0.05)",
+                padding: "32px"
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-end",
+                  justifyContent: "space-between"
+                }}
+              >
+                {/* Left Section */}
+                <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+                  {/* Avatar */}
+                  <div
+                    style={{
+                      width: "88px",
+                      height: "88px",
+                      borderRadius: "50%",
+                      background: avatarColor(patient.name||""),
+                      border: "4px solid rgba(255,255,255,0.9)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      fontSize: "26px",
+                      fontWeight: "800",
+                      color: "#fff",
+                      fontFamily: F.display
+                    }}
+                  >
+                    {getInitials(patient.name||"")}
+                  </div>
+
+                  {/* Patient Info */}
+                  <div>
+                    <div
+                      style={{
+                        fontSize: "22px",
+                        fontWeight: "800",
+                        color: "#fff",
+                        fontFamily: F.display,
+                        marginBottom: "4px"
+                      }}
+                    >
+                      {patient.name || "Unknown Patient"}
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        color: "rgba(255,255,255,0.85)",
+                        marginBottom: "3px",
+                        fontFamily: F.body
+                      }}
+                    >
+                      {age ? `${age} yrs` : ""}{gender !== "—" ? ` | ${gender}` : ""}{patient.patient_id ? ` | ID: ${patient.patient_id}` : ""}
+                    </div>
+
+                    <span style={{ display:"inline-flex", alignItems:"center", gap:"5px", fontSize:"12px", fontWeight:"600", color:"#2E7D32", background:"#E8F5E9", border:"1.5px solid #A5D6A7", padding:"4px 12px", borderRadius:"999px" }}>
+                      <CheckSmIcon /> Consent Active
+                    </span>
+                  </div>
+                </div>
+
+                {/* Right Section - Could add buttons here if needed */}
+                <div></div>
               </div>
             </div>
 
@@ -822,25 +951,65 @@ const PatientDetailPage = () => {
             {/* ── LAB REPORTS ── */}
             {tab === "lab" && (
               <div>
-                <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:"14px" }}>
-                  <input ref={labRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display:"none" }} />
-                  <button onClick={() => labRef.current.click()}
-                    style={{ padding:"10px 20px", background:C.primary, border:"none", borderRadius:"10px", color:"#fff", fontSize:"13px", fontWeight:"700", fontFamily:F.body, cursor:"pointer", display:"flex", alignItems:"center", gap:"8px" }}
-                    onMouseEnter={e=>e.currentTarget.style.background=C.primaryLight}
-                    onMouseLeave={e=>e.currentTarget.style.background=C.primary}
-                  ><UploadIcon /> Upload Lab Report</button>
+                {/* Upload Section */}
+                <div style={{ background:C.white, borderRadius:"14px", border:`1px solid ${C.border}`, boxShadow:"0 2px 8px rgba(28,74,62,0.04)", padding:"24px", marginBottom:"20px" }}>
+                  <div style={{ fontSize:"14px", fontWeight:"700", color:C.textPrimary, marginBottom:"14px", display:"flex", alignItems:"center", gap:"8px" }}>
+                    <UploadIcon /> Upload Patient Report
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"14px", marginBottom:"14px" }}>
+                    <div>
+                      <label style={fldLabel}>Report Title</label>
+                      <input value={reportUploadForm.title} onChange={e=>setReportUploadForm(p=>({...p,title:e.target.value}))} placeholder="e.g., Blood Test Results" style={inputSt(false)} />
+                    </div>
+                    <div>
+                      <label style={fldLabel}>Laboratory Name</label>
+                      <input value={reportUploadForm.lab} onChange={e=>setReportUploadForm(p=>({...p,lab:e.target.value}))} placeholder="e.g., Apollo Labs" style={inputSt(false)} />
+                    </div>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"14px", marginBottom:"14px" }}>
+                    <div>
+                      <label style={fldLabel}>Report Type</label>
+                      <select value={reportUploadForm.type} onChange={e=>setReportUploadForm(p=>({...p,type:e.target.value}))} style={{...inputSt(false),cursor:"pointer"}}>
+                        {["Lab Report","Blood Test","Radiology","ECG","Pathology","Ultrasound","CT Scan","MRI","Other"].map(t=><option key={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={fldLabel}>Date</label>
+                      <input type="date" value={reportUploadForm.date} onChange={e=>setReportUploadForm(p=>({...p,date:e.target.value}))} style={inputSt(false)} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom:"14px" }}>
+                    <label style={fldLabel}>Select File (PDF or Image)</label>
+                    <input ref={reportFileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{display:"none"}} onChange={e=>{const f=e.target.files[0]; if(f) setReportUploadFile(f);}} />
+                    <button onClick={()=>reportFileRef.current.click()} disabled={uploadingReport}
+                      style={{ width:"100%", padding:"12px 16px", background:C.bg, border:`1.5px dashed ${C.border}`, borderRadius:"10px", cursor: uploadingReport ? "not-allowed" : "pointer", fontSize:"13px", fontWeight:"600", color:C.textSecondary, fontFamily:F.body, display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", opacity: uploadingReport ? 0.6 : 1 }}>
+                      <UploadIcon /> {reportUploadFile ? reportUploadFile.name : "Choose File"}
+                    </button>
+                  </div>
+                  <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end" }}>
+                    <button onClick={()=>{setReportUploadFile(null);reportFileRef.current.value="";setReportUploadForm({title:"",lab:"",type:"Lab Report",date:new Date().toLocaleDateString("en-GB")});}}
+                      style={{padding:"10px 20px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:"10px", fontSize:"13px", fontWeight:"600", color:C.textSecondary, fontFamily:F.body, cursor:"pointer"}}>
+                      Cancel
+                    </button>
+                    <button onClick={handleReportUpload} disabled={uploadingReport || !reportUploadFile}
+                      style={{padding:"10px 20px", background: uploadingReport ? "#999" : C.primary, border:"none", borderRadius:"10px", color:"#fff", fontSize:"13px", fontWeight:"700", fontFamily:F.body, cursor: uploadingReport ? "not-allowed" : "pointer", display:"flex", alignItems:"center", gap:"8px"}}>
+                      <FileIcon /> {uploadingReport ? "Uploading..." : "Upload Report"}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Reports List */}
                 <div style={{ background:C.white, borderRadius:"14px", border:`1px solid ${C.border}`, overflow:"hidden", boxShadow:"0 2px 8px rgba(28,74,62,0.04)" }}>
                   {pdfs.length === 0 ? (
                     <div style={{ padding:"48px", textAlign:"center", color:C.textSecondary, fontSize:"14px" }}>
                       <div style={{ fontSize:"32px", marginBottom:"12px" }}>📋</div>
-                      No lab reports uploaded yet.
+                      No reports uploaded yet.
                     </div>
                   ) : (
                     <table style={{ width:"100%", borderCollapse:"collapse" }}>
                       <thead>
                         <tr style={{ background:C.bg, borderBottom:`1px solid ${C.border}` }}>
-                          {["Report Name","Date","Type","Action"].map(h => (
+                          {["Report","Date","Type","Source","Status"].map(h => (
                             <th key={h} style={{ padding:"13px 20px", fontSize:"12px", fontWeight:"700", color:C.textSecondary, textAlign:"left", textTransform:"uppercase", letterSpacing:"0.7px" }}>{h}</th>
                           ))}
                         </tr>
@@ -848,19 +1017,28 @@ const PatientDetailPage = () => {
                       <tbody>
                         {pdfs.map((r, i) => {
                           const s = scBadge("Uploaded");
+                          const isDocUploaded = r.is_doctor_upload || r.uploaded_by;
                           return (
                             <tr key={i} style={{ borderBottom: i < pdfs.length-1 ? `1px solid ${C.border}` : "none" }}>
                               <td style={{ padding:"16px 20px" }}>
                                 <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
                                   <div style={{ width:"34px", height:"34px", background:C.primaryGhost, borderRadius:"8px", display:"flex", alignItems:"center", justifyContent:"center", color:C.primary }}><FileIcon /></div>
-                                  <span style={{ fontSize:"14px", fontWeight:"600", color:C.textPrimary }}>{r.title || r.file_name}</span>
+                                  <div>
+                                    <div style={{ fontSize:"14px", fontWeight:"600", color:C.textPrimary }}>{r.title || r.file_name}</div>
+                                    {r.lab && <div style={{fontSize:"12px", color:C.textSecondary}}>{r.lab}</div>}
+                                  </div>
                                 </div>
                               </td>
                               <td style={{ padding:"16px 20px", fontSize:"13px", color:C.textSecondary }}>{fmtDate(r.date || r.uploaded_at)}</td>
                               <td style={{ padding:"16px 20px" }}>
                                 <span style={{ background:s.bg, color:s.color, border:`1.5px solid ${s.bd}`, padding:"5px 12px", borderRadius:"999px", fontSize:"12px", fontWeight:"600" }}>{r.type || "Report"}</span>
                               </td>
-                              <td style={{ padding:"16px 20px", fontSize:"13px", color:C.textSecondary }}>—</td>
+                              <td style={{ padding:"16px 20px", fontSize:"13px" }}>
+                                <span style={{color: isDocUploaded ? C.primary : C.textSecondary, fontWeight: isDocUploaded ? "600" : "400"}}>
+                                  {isDocUploaded ? "📄 Doctor" : "👤 Patient"}
+                                </span>
+                              </td>
+                              <td style={{ padding:"16px 20px", fontSize:"13px", color:C.textSecondary }}>✓</td>
                             </tr>
                           );
                         })}
