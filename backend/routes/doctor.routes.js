@@ -254,7 +254,22 @@ router.get('/patients/:patientId/records', verifyDoctorToken, async (req, res) =
     if (error) throw error;
     if (!data?.length) return res.status(404).json({ success: false, message: 'Patient not found' });
 
-    res.json({ success: true, patient: data[0] });
+    const patient = data[0];
+
+    // Phone is stored in users table (mobilenumber), not in patients — fetch and inject
+    const { data: userData } = await supabase
+      .from('users')
+      .select('mobilenumber')
+      .eq('patient_id', patientId)
+      .limit(1);
+    const phone = userData?.[0]?.mobilenumber || null;
+
+    // Merge phone into demographics so all frontend reads it from one place
+    const demo = typeof patient.demographics === 'string'
+      ? JSON.parse(patient.demographics || '{}') : (patient.demographics || {});
+    if (phone && !demo.phone_number) demo.phone_number = phone;
+
+    res.json({ success: true, patient: { ...patient, demographics: demo } });
   } catch (error) {
     console.error('Error fetching patient records:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
@@ -265,7 +280,7 @@ router.get('/patients/:patientId/records', verifyDoctorToken, async (req, res) =
 router.post('/patients/:patientId/consultation', verifyDoctorToken, async (req, res) => {
   try {
     const { patientId } = req.params;
-    const { date, notes, diagnosis, prescription, reason_for_visit, severity, icd_code, secondary_diagnosis } = req.body;
+    const { date, notes, diagnosis, prescription, reason_for_visit, severity, icd_code, doctor_notes } = req.body;
 
     if (!date || !notes)
       return res.status(400).json({ success: false, message: 'Date and notes are required' });
@@ -296,18 +311,18 @@ router.post('/patients/:patientId/consultation', verifyDoctorToken, async (req, 
 
     const consultationId = `CONS-${Date.now()}`;
     const newConsultation = {
-      consultation_id:     consultationId,
-      date:                date,
-      hospital:            hospital,
-      doctor:              `Dr. ${doctorName}`,
-      reason_for_visit:    reason_for_visit || notes,
-      diagnosis:           diagnosis || '',
-      secondary_diagnosis: secondary_diagnosis || '',
-      icd_code:            icd_code || '',
-      severity:            severity || '',
-      prescription:        prescription || '',
-      clinical_findings:   notes,
-      created_at:          new Date().toISOString(),
+      consultation_id:  consultationId,
+      date:             date,
+      hospital:         hospital,
+      doctor:           `Dr. ${doctorName}`,
+      reason_for_visit: reason_for_visit || notes,
+      diagnosis:        diagnosis || '',
+      doctor_notes:     doctor_notes || '',
+      icd_code:         icd_code || '',
+      severity:         severity || '',
+      prescription:     prescription || '',
+      clinical_findings: notes,
+      created_at:       new Date().toISOString(),
     };
 
     const { data: patientRows, error: fetchError } = await supabase
@@ -343,6 +358,65 @@ router.post('/patients/:patientId/consultation', verifyDoctorToken, async (req, 
 
   } catch (error) {
     console.error('Error adding consultation:', error);
+    res.status(500).json({ success: false, message: 'Server error', error: error.message });
+  }
+});
+
+// PUT /api/doctors/patients/:patientId/consultation/:consultationId
+// Edits an existing consultation IN-PLACE — no new record created (fix for issue #4)
+router.put('/patients/:patientId/consultation/:consultationId', verifyDoctorToken, async (req, res) => {
+  try {
+    const { patientId, consultationId } = req.params;
+    const { date, notes, diagnosis, prescription, reason_for_visit, severity, icd_code, doctor_notes } = req.body;
+
+    const { data: approval } = await supabase
+      .from('access_requests').select('id')
+      .eq('doctor_id', req.doctorId).eq('patient_id', patientId).eq('status', 'approved').limit(1);
+    if (!approval?.length)
+      return res.status(403).json({ success: false, message: 'Access not approved by patient' });
+
+    const { data: patientRows, error: fetchError } = await supabase
+      .from('patients').select('consultations').eq('patient_id', patientId).limit(1);
+    if (fetchError) throw fetchError;
+    if (!patientRows?.length)
+      return res.status(404).json({ success: false, message: 'Patient not found' });
+
+    const existing = (() => {
+      const v = patientRows[0].consultations;
+      if (Array.isArray(v)) return v;
+      if (typeof v === 'string') { try { return JSON.parse(v); } catch { return []; } }
+      return v || [];
+    })();
+
+    const idx = existing.findIndex(c => c.consultation_id === consultationId);
+    if (idx === -1)
+      return res.status(404).json({ success: false, message: 'Consultation not found' });
+
+    // Patch only the fields that were sent — keep everything else intact
+    existing[idx] = {
+      ...existing[idx],
+      ...(date             !== undefined && { date }),
+      ...(notes            !== undefined && { clinical_findings: notes }),
+      ...(diagnosis        !== undefined && { diagnosis }),
+      ...(prescription     !== undefined && { prescription }),
+      ...(reason_for_visit !== undefined && { reason_for_visit }),
+      ...(severity         !== undefined && { severity }),
+      ...(icd_code         !== undefined && { icd_code }),
+      ...(doctor_notes     !== undefined && { doctor_notes }),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: updateError } = await supabase
+      .from('patients')
+      .update({ consultations: JSON.stringify(existing) })
+      .eq('patient_id', patientId);
+    if (updateError) throw updateError;
+
+    console.log(`✅ Consultation ${consultationId} updated for patient ${patientId}`);
+    res.json({ success: true, message: 'Consultation updated', consultation: existing[idx] });
+
+  } catch (error) {
+    console.error('Error updating consultation:', error);
     res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 });

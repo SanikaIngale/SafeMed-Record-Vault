@@ -36,7 +36,7 @@ const fmtDate = (d) => {
 };
 
 // ── Empty diagnosis template ──────────────────────────────────────────────────
-const emptyDiag = () => ({ reason: "", primary: "", secondary: "", severity: "Moderate", medications: [] });
+const emptyDiag = () => ({ reason: "", primary: "", doctor_notes: "", severity: "Moderate", medications: [] });
 const emptyMed = () => ({ name: "", dosage: "", frequency: "Once daily", duration: "", instructions: "" });
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -224,14 +224,23 @@ const PatientDetailPage = () => {
     setSaving(true);
     try {
       const combinedDiagnosis = diagList
-        .filter(d => d.primary || d.secondary)
-        .map(d => [d.primary, d.secondary].filter(Boolean).join("; "))
+        .filter(d => d.primary)
+        .map(d => d.primary)
         .join(" | ");
 
       const combinedNotes = diagList
         .filter(d => d.reason)
         .map(d => d.reason)
         .join("\n---\n");
+
+      // Doctor's Notes — mandatory field (was "secondary diagnosis")
+      const combinedDoctorNotes = diagList
+        .filter(d => d.doctor_notes)
+        .map(d => d.doctor_notes)
+        .join("\n---\n");
+
+      // Severity — take from first diagnosis entry
+      const severity = diagList[0]?.severity || "Moderate";
 
       // Combine all medications from all diagnosis entries
       const allMeds = diagList
@@ -242,10 +251,13 @@ const PatientDetailPage = () => {
         .join("\n");
 
       const body = {
-        date:  new Date().toISOString().split("T")[0],
-        notes: combinedNotes || "Consultation",
-        diagnosis: combinedDiagnosis,
-        prescription: combinedPrescription,
+        date:             new Date().toISOString().split("T")[0],
+        notes:            combinedNotes || "Consultation",
+        reason_for_visit: combinedNotes || "Consultation",
+        diagnosis:        combinedDiagnosis,
+        doctor_notes:     combinedDoctorNotes,
+        severity,
+        prescription:     combinedPrescription,
       };
       const res = await fetch(`${API_URL}/api/doctors/patients/${id}/consultation`, {
         method: "POST",
@@ -589,8 +601,8 @@ const PatientDetailPage = () => {
                           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:"20px" }}>
                             {[
                               ["REASON FOR VISIT", v.reason_for_visit || v.reason || "—"],
-                              ["NOTES",            v.notes            || "—"],
                               ["DIAGNOSIS",        v.diagnosis        || "—"],
+                              ["DOCTOR'S NOTES",   v.doctor_notes     || "—"],
                               ["PRESCRIPTION",     v.prescription     || "—"],
                             ].map(([h,t]) => (
                               <div key={h}>
@@ -732,18 +744,24 @@ const PatientDetailPage = () => {
   const parsedMeds = (editVals.medications) ?? (
     v.prescription
       ? v.prescription.split("\n").filter(Boolean).map(line => {
+          // Format: "Name Dosage — Frequency for Duration. Instructions"
           const dashIdx = line.indexOf("—");
           const left    = dashIdx > -1 ? line.slice(0, dashIdx).trim() : line;
           const right   = dashIdx > -1 ? line.slice(dashIdx + 1).trim() : "";
-          // "Name Dosage" split on last space
+          // "Name Dosage" split on last space before dosage
           const lastSpace = left.lastIndexOf(" ");
-          return {
-            name:         lastSpace > -1 ? left.slice(0, lastSpace) : left,
-            dosage:       lastSpace > -1 ? left.slice(lastSpace + 1) : "",
-            frequency:    "Once daily",
-            duration:     "",
-            instructions: right.replace(/^[^.]+\.\s*/, "").trim(),
-          };
+          const name   = lastSpace > -1 ? left.slice(0, lastSpace) : left;
+          const dosage = lastSpace > -1 ? left.slice(lastSpace + 1) : "";
+          // right = "Frequency for Duration. Instructions"
+          const forIdx  = right.indexOf(" for ");
+          const dotIdx  = right.indexOf(".");
+          const frequency   = forIdx > -1 ? right.slice(0, forIdx).trim() : "Once daily";
+          const afterFor    = forIdx > -1 ? right.slice(forIdx + 5) : right;
+          const duration    = dotIdx > -1 && dotIdx > forIdx
+            ? right.slice(forIdx + 5, dotIdx).trim()
+            : afterFor.trim();
+          const instructions = dotIdx > -1 ? right.slice(dotIdx + 1).trim() : "";
+          return { name, dosage, frequency, duration, instructions };
         })
       : []
   );
@@ -755,8 +773,8 @@ const PatientDetailPage = () => {
 
   // Parse primary / secondary from "Primary; Secondary" or "Primary | Secondary"
   const diagParts  = (v.diagnosis || "").split(/[;|]/).map(s => s.trim());
-  const initPrimary   = editVals.primary   ?? (diagParts[0] || "");
-  const initSecondary = editVals.secondary ?? (diagParts[1] || "");
+  const initPrimary    = editVals.primary    ?? (diagParts[0] || "");
+  const initDoctorNotes = editVals.doctor_notes ?? (v.doctor_notes || v.clinical_findings || "");
   const initReason    = editVals.reason    ?? (v.reason_for_visit || v.notes || v.reason || "");
   const initSeverity  = editVals.severity  ?? "Moderate";
   const meds          = editVals.medications ?? parsedMeds;
@@ -786,10 +804,10 @@ const PatientDetailPage = () => {
               style={inputSt(focused === `eh_primary_${i}`)} />
           </div>
           <div>
-            <label style={fldLabel}>Secondary Diagnosis <span style={{ color:C.textSecondary, fontWeight:"400" }}>(Optional)</span></label>
-            <input value={initSecondary}
-              onChange={e => setEH({ secondary: e.target.value })}
-              placeholder="Additional conditions identified"
+            <label style={fldLabel}>Doctor's Notes</label>
+            <input value={initDoctorNotes}
+              onChange={e => setEH({ doctor_notes: e.target.value })}
+              placeholder="Clinical observations, additional findings..."
               onFocus={() => setFocused(`eh_secondary_${i}`)} onBlur={() => setFocused(null)}
               style={inputSt(focused === `eh_secondary_${i}`)} />
           </div>
@@ -874,27 +892,34 @@ const PatientDetailPage = () => {
           onClick={async () => {
             const token = localStorage.getItem("doctor_token");
             try {
-              // Rebuild combined fields from structured edit values
-              const combinedDiag = [initPrimary, initSecondary].filter(Boolean).join("; ");
               const combinedPresc = meds.filter(m => m.name).map(m =>
                 `${m.name} ${m.dosage} — ${m.frequency} for ${m.duration}. ${m.instructions}`
               ).join("\n");
 
-              const res = await fetch(`${API_URL}/api/doctors/patients/${id}/consultation`, {
-                method: "POST",
+              // PUT to edit in-place using the consultation's own ID (no new record created)
+              const res = await fetch(`${API_URL}/api/doctors/patients/${id}/consultation/${v.consultation_id}`, {
+                method: "PUT",
                 headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` },
                 body: JSON.stringify({
-                  date:         v.date || new Date().toISOString().split("T")[0],
-                  notes:        initReason,
+                  date:             v.date || new Date().toISOString().split("T")[0],
+                  notes:            initReason,
                   reason_for_visit: initReason,
-                  diagnosis:    combinedDiag,
-                  prescription: combinedPresc,
+                  diagnosis:        initPrimary,
+                  doctor_notes:     initDoctorNotes,
+                  severity:         initSeverity,
+                  prescription:     combinedPresc,
                 }),
               });
               const json = await res.json();
               if (!json.success) throw new Error(json.message);
               triggerSave("Updated record");
               setExpandedHistory(null);
+              // Refresh patient data to show updated record
+              const patRes = await fetch(`${API_URL}/api/doctors/patients/${id}/records`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              const patData = await patRes.json();
+              if (patData.success) setPatient(patData.patient);
             } catch(err) { alert("Failed to update: " + err.message); }
           }}
           style={{ padding:"9px 20px", background:C.primary, border:"none", borderRadius:"10px", fontSize:"13px", fontWeight:"700", color:"#fff", fontFamily:F.body, cursor:"pointer", display:"flex", alignItems:"center", gap:"7px" }}
@@ -959,9 +984,9 @@ const PatientDetailPage = () => {
 
                         </div>
                         <div>
-                          <label style={fldLabel}>Secondary Diagnosis <span style={{ color:C.textSecondary, fontWeight:"400" }}>(Optional)</span></label>
-                          <input value={diag.secondary} onChange={e => updateDiag(i, "secondary", e.target.value)}
-                            placeholder="Additional conditions identified"
+                          <label style={fldLabel}>Doctor's Notes</label>
+                          <input value={diag.doctor_notes} onChange={e => updateDiag(i, "doctor_notes", e.target.value)}
+                            placeholder="Clinical observations, additional findings..."
                             onFocus={() => setFocused(`ds${i}`)} onBlur={() => setFocused(null)}
                             style={inputSt(focused === `ds${i}`)} />
                         </div>

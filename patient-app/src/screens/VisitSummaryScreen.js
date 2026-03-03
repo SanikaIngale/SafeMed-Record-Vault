@@ -90,18 +90,16 @@ const VisitSummaryScreen = ({ navigation, route }) => {
   // Reason for visit — doctor webapp saves to reason_for_visit; fallback to notes
   const reasonForVisit = consultation?.reason_for_visit || consultation?.notes || 'N/A';
 
-  // Diagnosis — prefer explicit primary_diagnosis field, fallback to parsing combined string
+  // Diagnosis — primary only
   const rawDiagnosis     = consultation?.diagnosis || '';
   const primaryDiagnosis = consultation?.primary_diagnosis
     || (rawDiagnosis ? rawDiagnosis.split(' | ')[0].split(';')[0].trim() : 'N/A');
-  const secondaryDiagnosis = consultation?.secondary_diagnosis
-    || (rawDiagnosis.includes(';') ? rawDiagnosis.split(';').slice(1).join(';').trim() : '');
 
   const icdCode  = consultation?.icd_code  || '';
   const severity = consultation?.severity  || '';
 
-  // Clinical findings saved by doctor webapp
-  const clinicalFindings = consultation?.clinical_findings || consultation?.doctor_notes || '';
+  // Doctor's Notes — was "secondary diagnosis", now its own mandatory field
+  const doctorNotes = consultation?.doctor_notes || consultation?.clinical_findings || '';
 
   // Prescription as structured text lines
   const prescriptionLines = parsePrescription(consultation?.prescription || consultation?.prescriptions || '');
@@ -161,12 +159,6 @@ const VisitSummaryScreen = ({ navigation, route }) => {
           {/* ── Diagnosis ── */}
           <InfoSection title="Diagnosis">
             <Text style={styles.sectionText}>{primaryDiagnosis}</Text>
-            {secondaryDiagnosis ? (
-              <View style={styles.subRow}>
-                <Text style={styles.subLabel}>Secondary: </Text>
-                <Text style={styles.subValue}>{secondaryDiagnosis}</Text>
-              </View>
-            ) : null}
             {icdCode ? (
               <View style={styles.subRow}>
                 <Text style={styles.subLabel}>ICD Code: </Text>
@@ -187,12 +179,12 @@ const VisitSummaryScreen = ({ navigation, route }) => {
             </>
           ) : null}
 
-          {/* ── Clinical Findings / Doctor's Notes ── */}
-          {clinicalFindings ? (
+          {/* ── Doctor's Notes ── */}
+          {doctorNotes ? (
             <>
               <SectionDivider />
               <InfoSection title="Doctor's Notes">
-                <Text style={styles.sectionText}>{clinicalFindings}</Text>
+                <Text style={styles.sectionText}>{doctorNotes}</Text>
               </InfoSection>
             </>
           ) : null}
