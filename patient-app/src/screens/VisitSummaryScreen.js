@@ -15,191 +15,236 @@ import {
   View,
 } from 'react-native';
 
-const AttachmentCard = ({ attachment, type }) => {
-  const getIconName = () => {
-    if (type === 'prescription') return 'file-document';
-    if (type === 'lab_report') return 'file-chart';
-    return 'file-document';
-  };
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const getInitials = (name) => {
+  if (!name || name === 'N/A') return 'DR';
+  const parts = name.replace(/^Dr\.?\s*/i, '').trim().split(' ');
+  return parts.length > 1
+    ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+    : parts[0][0].toUpperCase();
+};
 
+const parsePrescription = (raw) => {
+  if (!raw) return [];
+  return raw.split('\n').map(l => l.trim()).filter(Boolean);
+};
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+const SectionDivider = () => <View style={styles.divider} />;
+
+const InfoSection = ({ title, children }) => (
+  <View style={styles.section}>
+    <Text style={styles.sectionTitle}>{title}</Text>
+    {children}
+  </View>
+);
+
+const AttachmentCard = ({ attachment, type }) => (
+  <TouchableOpacity style={styles.attachmentCard}>
+    <View style={styles.attachmentIcon}>
+      <Icon name={type === 'lab_report' ? 'file-chart' : 'file-document'} size={32} color="#1E4B46" />
+    </View>
+    <Text style={styles.attachmentText}>{attachment}</Text>
+  </TouchableOpacity>
+);
+
+const MedicationRow = ({ line, index }) => {
+  const dashIdx = line.indexOf(' — ');
+  let name = line, details = null;
+  if (dashIdx > -1) {
+    name    = line.slice(0, dashIdx);
+    details = line.slice(dashIdx + 3);
+  }
   return (
-    <TouchableOpacity style={styles.attachmentCard}>
-      <View style={styles.attachmentIcon}>
-        <Icon name={getIconName()} size={32} color="#1E4B46" />
+    <View style={[styles.medRow, { borderBottomWidth: 1, borderBottomColor: '#EEF8F6' }]}>
+      <View style={styles.medBullet}>
+        <Text style={styles.medBulletText}>{index + 1}</Text>
       </View>
-      <Text style={styles.attachmentText}>{attachment}</Text>
-    </TouchableOpacity>
+      <View style={styles.medContent}>
+        <Text style={styles.medName}>{name}</Text>
+        {details ? <Text style={styles.medDetails}>{details}</Text> : null}
+      </View>
+    </View>
   );
 };
 
+// ── Main Screen ───────────────────────────────────────────────────────────────
 const VisitSummaryScreen = ({ navigation, route }) => {
   const { consultation } = route.params || {};
 
+  const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
+  if (!fontsLoaded) return null;
+
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    const options = { day: '2-digit', month: 'long', year: '2-digit' };
-    return date.toLocaleDateString('en-GB', options).replace(/ /g, ' ');
+    return new Date(dateString).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
   };
 
-  const handleBack = () => {
-    navigation.goBack();
-  };
-
-  let [fontsLoaded] = useFonts({
-    Poppins_400Regular,
-    Poppins_600SemiBold,
-    Poppins_700Bold,
-  });
-
-  if (!fontsLoaded) {
-    return null;
-  }
-
-  // Extract data from consultation object
-  const doctorName = consultation?.doctor?.name || 'N/A';
+  // ── Extract fields ────────────────────────────────────────────────────────
+  const doctorName           = consultation?.doctor?.name || consultation?.doctor || 'N/A';
   const doctorSpecialization = consultation?.doctor?.specialization || '';
-  const hospital = consultation?.hospital || 'N/A';
-  const department = consultation?.department || '';
-  const date = formatDate(consultation?.date);
-  const reasonForVisit = consultation?.reason_for_visit || 'N/A';
-  const diagnosis = consultation?.diagnosis || 'N/A';
+  const hospital             = consultation?.hospital || 'N/A';
+  const department           = consultation?.department || '';
+  const date                 = formatDate(consultation?.date);
 
-  // clinical_findings is saved by doctor web, doctor_notes is legacy field
-  const doctorNotes = consultation?.clinical_findings || consultation?.doctor_notes || 'No additional notes';
+  // Reason for visit — doctor webapp saves to reason_for_visit; fallback to notes
+  const reasonForVisit = consultation?.reason_for_visit || consultation?.notes || 'N/A';
 
-  const nextSteps = consultation?.next_steps || '';
+  // Diagnosis — prefer explicit primary_diagnosis field, fallback to parsing combined string
+  const rawDiagnosis     = consultation?.diagnosis || '';
+  const primaryDiagnosis = consultation?.primary_diagnosis
+    || (rawDiagnosis ? rawDiagnosis.split(' | ')[0].split(';')[0].trim() : 'N/A');
+  const secondaryDiagnosis = consultation?.secondary_diagnosis
+    || (rawDiagnosis.includes(';') ? rawDiagnosis.split(';').slice(1).join(';').trim() : '');
+
+  const icdCode  = consultation?.icd_code  || '';
+  const severity = consultation?.severity  || '';
+
+  // Clinical findings saved by doctor webapp
+  const clinicalFindings = consultation?.clinical_findings || consultation?.doctor_notes || '';
+
+  // Prescription as structured text lines
+  const prescriptionLines = parsePrescription(consultation?.prescription || consultation?.prescriptions || '');
+
+  const nextSteps    = consultation?.next_steps || '';
   const followUpDate = consultation?.follow_up_date ? formatDate(consultation.follow_up_date) : null;
 
-  // severity and icd_code saved by doctor web
-  const severity = consultation?.severity || '';
-  const icdCode = consultation?.icd_code || '';
-  const secondaryDiagnosis = consultation?.secondary_diagnosis || '';
-
-  // Parse lab reports (format: "Test Name, File Path")
+  // Lab reports — skip file paths, keep names only
   const labReports = consultation?.lab_reports
     ? consultation.lab_reports.split(',').filter(item => item.trim() && !item.includes('/uploads/'))
     : [];
 
-  // prescription (singular) saved by doctor web, prescriptions (plural) is legacy
-  const hasAttachments = consultation?.prescription || consultation?.prescriptions || labReports.length > 0;
+  const severityColors = {
+    Mild:     { bg: '#E8F5E9', border: '#A5D6A7', text: '#2E7D32' },
+    Moderate: { bg: '#FFF8E1', border: '#FFE082', text: '#E65100' },
+    Severe:   { bg: '#FBE9E7', border: '#FFAB91', text: '#BF360C' },
+    Critical: { bg: '#FFEBEE', border: '#EF9A9A', text: '#C62828' },
+  };
+  const sevStyle = severityColors[severity] || severityColors.Mild;
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Icon name="arrow-left" size={24} color="#333" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Visit Summary</Text>
         <View style={{ width: 24 }} />
       </View>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-      >
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.summaryCard}>
+
+          {/* ── Doctor header ── */}
           <View style={styles.doctorHeader}>
-            <View style={styles.doctorImage}>
-              <Text style={styles.doctorInitial}>
-                {doctorName.charAt(4) || 'D'}
-              </Text>
+            <View style={styles.doctorAvatar}>
+              <Text style={styles.doctorInitial}>{getInitials(doctorName)}</Text>
             </View>
             <View style={styles.doctorInfo}>
               <Text style={styles.doctorName}>{doctorName}</Text>
-              {doctorSpecialization ? (
-                <Text style={styles.specializationText}>{doctorSpecialization}</Text>
-              ) : null}
+              {doctorSpecialization ? <Text style={styles.specializationText}>{doctorSpecialization}</Text> : null}
               <Text style={styles.clinicName}>{hospital}</Text>
-              {department ? (
-                <Text style={styles.departmentText}>{department}</Text>
-              ) : null}
+              {department ? <Text style={styles.departmentText}>{department}</Text> : null}
               <Text style={styles.dateText}>{date}</Text>
             </View>
           </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Reason for Visit</Text>
+          {/* ── Reason for Visit ── */}
+          <InfoSection title="Reason for Visit">
             <Text style={styles.sectionText}>{reasonForVisit}</Text>
-          </View>
+          </InfoSection>
 
-          <View style={styles.divider} />
+          <SectionDivider />
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Diagnosis</Text>
-            <Text style={styles.sectionText}>{diagnosis}</Text>
+          {/* ── Diagnosis ── */}
+          <InfoSection title="Diagnosis">
+            <Text style={styles.sectionText}>{primaryDiagnosis}</Text>
             {secondaryDiagnosis ? (
-              <Text style={[styles.sectionText, { marginTop: 6, color: '#555' }]}>
-                Secondary: {secondaryDiagnosis}
-              </Text>
+              <View style={styles.subRow}>
+                <Text style={styles.subLabel}>Secondary: </Text>
+                <Text style={styles.subValue}>{secondaryDiagnosis}</Text>
+              </View>
             ) : null}
             {icdCode ? (
-              <Text style={[styles.sectionText, { marginTop: 4, color: '#888', fontSize: 12 }]}>
-                ICD Code: {icdCode}
-              </Text>
+              <View style={styles.subRow}>
+                <Text style={styles.subLabel}>ICD Code: </Text>
+                <Text style={[styles.subValue, { color: '#888' }]}>{icdCode}</Text>
+              </View>
             ) : null}
-          </View>
+          </InfoSection>
 
+          {/* ── Severity ── */}
           {severity ? (
             <>
-              <View style={styles.divider} />
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Severity</Text>
-                <View style={styles.severityBadge}>
-                  <Text style={styles.severityText}>{severity}</Text>
+              <SectionDivider />
+              <InfoSection title="Severity">
+                <View style={[styles.severityBadge, { backgroundColor: sevStyle.bg, borderColor: sevStyle.border }]}>
+                  <Text style={[styles.severityText, { color: sevStyle.text }]}>{severity}</Text>
                 </View>
-              </View>
+              </InfoSection>
             </>
           ) : null}
 
-          <View style={styles.divider} />
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Doctor's Notes</Text>
-            <Text style={styles.sectionText}>{doctorNotes}</Text>
-          </View>
-
-          {nextSteps ? (
+          {/* ── Clinical Findings / Doctor's Notes ── */}
+          {clinicalFindings ? (
             <>
-              <View style={styles.divider} />
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Next Steps</Text>
-                <Text style={styles.sectionText}>{nextSteps}</Text>
-              </View>
+              <SectionDivider />
+              <InfoSection title="Doctor's Notes">
+                <Text style={styles.sectionText}>{clinicalFindings}</Text>
+              </InfoSection>
             </>
           ) : null}
 
-          {followUpDate ? (
+          {/* ── Prescription — structured medication list ── */}
+          {prescriptionLines.length > 0 ? (
             <>
-              <View style={styles.divider} />
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Follow-up Date</Text>
-                <Text style={styles.sectionText}>{followUpDate}</Text>
-              </View>
-            </>
-          ) : null}
-
-          {hasAttachments ? (
-            <>
-              <View style={styles.divider} />
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Attachments</Text>
-                <View style={styles.attachmentsContainer}>
-                  {(consultation?.prescription || consultation?.prescriptions) ? (
-                    <AttachmentCard
-                      attachment="Prescription"
-                      type="prescription"
-                    />
-                  ) : null}
-                  {labReports.map((report, index) => (
-                    <AttachmentCard
-                      key={index}
-                      attachment={report.trim()}
-                      type="lab_report"
-                    />
+              <SectionDivider />
+              <InfoSection title="Prescription">
+                <View style={styles.prescriptionContainer}>
+                  {prescriptionLines.map((line, index) => (
+                    <MedicationRow key={index} line={line} index={index} />
                   ))}
                 </View>
-              </View>
+              </InfoSection>
+            </>
+          ) : null}
+
+          {/* ── Next Steps ── */}
+          {nextSteps ? (
+            <>
+              <SectionDivider />
+              <InfoSection title="Next Steps">
+                <Text style={styles.sectionText}>{nextSteps}</Text>
+              </InfoSection>
+            </>
+          ) : null}
+
+          {/* ── Follow-up Date ── */}
+          {followUpDate ? (
+            <>
+              <SectionDivider />
+              <InfoSection title="Follow-up Date">
+                <View style={styles.followUpRow}>
+                  <Icon name="calendar-clock" size={16} color="#1E4B46" />
+                  <Text style={[styles.sectionText, { marginLeft: 8 }]}>{followUpDate}</Text>
+                </View>
+              </InfoSection>
+            </>
+          ) : null}
+
+          {/* ── Lab Reports — as attachment cards ── */}
+          {labReports.length > 0 ? (
+            <>
+              <SectionDivider />
+              <InfoSection title="Lab Reports">
+                <View style={styles.attachmentsContainer}>
+                  {labReports.map((report, index) => (
+                    <AttachmentCard key={index} attachment={report.trim()} type="lab_report" />
+                  ))}
+                </View>
+              </InfoSection>
             </>
           ) : null}
 
@@ -210,160 +255,58 @@ const VisitSummaryScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 45,
-    paddingBottom: 15,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    padding: 5,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: 'Poppins_700Bold',
-    color: '#1e4b46',
-    fontWeight: '700',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-  },
-  summaryCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  doctorHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  doctorImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#1E4B46',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  doctorInitial: {
-    color: '#FFFFFF',
-    fontSize: 24,
-    fontFamily: 'Poppins_700Bold',
-    fontWeight: '700',
-  },
-  doctorInfo: {
-    flex: 1,
-  },
-  doctorName: {
-    fontSize: 18,
-    fontFamily: 'Poppins_700Bold',
-    color: '#1e4b46',
-    marginBottom: 2,
-    fontWeight: '700',
-  },
-  specializationText: {
-    fontSize: 13,
-    fontFamily: 'Poppins_400Regular',
-    color: '#666',
-    marginBottom: 2,
-  },
-  clinicName: {
-    fontSize: 14,
-    fontFamily: 'Poppins_400Regular',
-    color: '#1e4b46',
-    marginBottom: 2,
-  },
-  departmentText: {
-    fontSize: 13,
-    fontFamily: 'Poppins_400Regular',
-    color: '#666',
-    marginBottom: 2,
-  },
-  dateText: {
-    fontSize: 12,
-    fontFamily: 'Poppins_400Regular',
-    color: '#666',
-  },
-  section: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontFamily: 'Poppins_600SemiBold',
-    color: '#1e4b46',
-    marginBottom: 8,
-    fontWeight: '600',
-  },
-  sectionText: {
-    fontSize: 14,
-    color: '#1e4b46',
-    lineHeight: 20,
-    fontFamily: 'Poppins_400Regular',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#e0e0e0',
-    marginBottom: 20,
-  },
-  severityBadge: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#E8F5E9',
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: '#A5D6A7',
-  },
-  severityText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#2E7D32',
-    fontFamily: 'Poppins_600SemiBold',
-  },
-  attachmentsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 10,
-    gap: 10,
-  },
-  attachmentCard: {
-    flex: 1,
-    minWidth: '45%',
-    backgroundColor: '#e8f5f3',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 120,
-  },
-  attachmentIcon: {
-    marginBottom: 10,
-  },
-  attachmentText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#1e4b46',
-    textAlign: 'center',
-  },
+  container:     { flex: 1, backgroundColor: '#f5f5f5' },
+  header:        { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 45, paddingBottom: 15, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
+  backButton:    { padding: 5 },
+  headerTitle:   { fontSize: 18, fontFamily: 'Poppins_700Bold', color: '#1e4b46', fontWeight: '700' },
+  scrollView:    { flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 40 },
+
+  summaryCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 8, elevation: 3 },
+
+  // Doctor header
+  doctorHeader:      { flexDirection: 'row', alignItems: 'center', marginBottom: 20, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#E8F5F3' },
+  doctorAvatar:      { width: 60, height: 60, borderRadius: 30, backgroundColor: '#1E4B46', justifyContent: 'center', alignItems: 'center', marginRight: 15 },
+  doctorInitial:     { color: '#FFFFFF', fontSize: 20, fontFamily: 'Poppins_700Bold', fontWeight: '700' },
+  doctorInfo:        { flex: 1 },
+  doctorName:        { fontSize: 16, fontFamily: 'Poppins_700Bold', color: '#1e4b46', marginBottom: 2, fontWeight: '700' },
+  specializationText:{ fontSize: 12, fontFamily: 'Poppins_400Regular', color: '#666', marginBottom: 2 },
+  clinicName:        { fontSize: 13, fontFamily: 'Poppins_400Regular', color: '#1e4b46', marginBottom: 2 },
+  departmentText:    { fontSize: 12, fontFamily: 'Poppins_400Regular', color: '#666', marginBottom: 2 },
+  dateText:          { fontSize: 12, fontFamily: 'Poppins_400Regular', color: '#999' },
+
+  // Sections
+  section:      { marginBottom: 20 },
+  sectionTitle: { fontSize: 11, fontFamily: 'Poppins_600SemiBold', color: '#999', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8 },
+  sectionText:  { fontSize: 14, color: '#1e4b46', lineHeight: 22, fontFamily: 'Poppins_400Regular' },
+  divider:      { height: 1, backgroundColor: '#F0F0F0', marginBottom: 20 },
+
+  // Diagnosis sub-fields
+  subRow:   { flexDirection: 'row', marginTop: 6, flexWrap: 'wrap' },
+  subLabel: { fontSize: 13, color: '#999', fontFamily: 'Poppins_600SemiBold', fontWeight: '600' },
+  subValue: { fontSize: 13, color: '#555', fontFamily: 'Poppins_400Regular', flex: 1 },
+
+  // Severity
+  severityBadge: { alignSelf: 'flex-start', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 5, borderWidth: 1 },
+  severityText:  { fontSize: 13, fontWeight: '600', fontFamily: 'Poppins_600SemiBold' },
+
+  // Prescription
+  prescriptionContainer: { backgroundColor: '#F8FFFE', borderRadius: 12, borderWidth: 1, borderColor: '#E8F5F3', overflow: 'hidden' },
+  medRow:       { flexDirection: 'row', alignItems: 'flex-start', padding: 14 },
+  medBullet:    { width: 24, height: 24, borderRadius: 12, backgroundColor: '#1E4B46', justifyContent: 'center', alignItems: 'center', marginRight: 12, marginTop: 1, flexShrink: 0 },
+  medBulletText:{ color: '#fff', fontSize: 11, fontWeight: '700', fontFamily: 'Poppins_700Bold' },
+  medContent:   { flex: 1 },
+  medName:      { fontSize: 14, fontWeight: '600', color: '#1e4b46', fontFamily: 'Poppins_600SemiBold', marginBottom: 2 },
+  medDetails:   { fontSize: 12, color: '#666', fontFamily: 'Poppins_400Regular', lineHeight: 18 },
+
+  // Follow-up
+  followUpRow: { flexDirection: 'row', alignItems: 'center' },
+
+  // Lab attachments
+  attachmentsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  attachmentCard:  { flex: 1, minWidth: '45%', backgroundColor: '#E8F5F3', borderRadius: 12, padding: 16, alignItems: 'center', justifyContent: 'center', minHeight: 100 },
+  attachmentIcon:  { marginBottom: 8 },
+  attachmentText:  { fontSize: 12, fontWeight: '600', color: '#1e4b46', textAlign: 'center', fontFamily: 'Poppins_600SemiBold' },
 });
 
 export default VisitSummaryScreen;

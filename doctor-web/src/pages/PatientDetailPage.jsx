@@ -36,7 +36,8 @@ const fmtDate = (d) => {
 };
 
 // ── Empty diagnosis template ──────────────────────────────────────────────────
-const emptyDiag = () => ({ reason: "", primary: "", icd: "", secondary: "", severity: "Moderate", findings: "" });
+const emptyDiag = () => ({ reason: "", primary: "", secondary: "", severity: "Moderate", medications: [] });
+const emptyMed = () => ({ name: "", dosage: "", frequency: "Once daily", duration: "", instructions: "" });
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
 const HomeIcon    = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
@@ -56,7 +57,6 @@ const TrashIcon   = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="
 const UploadIcon  = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>;
 const FileIcon    = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>;
 const DiagIcon    = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>;
-const PrescIcon   = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>;
 const LabIcon     = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2v6l-2 4v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8l-2-4V2"/><line x1="6" y1="10" x2="14" y2="10"/></svg>;
 const HistoryIcon = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
 const SaveIcon    = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>;
@@ -174,9 +174,6 @@ const PatientDetailPage = () => {
   const [diagList, setDiagList] = useState([emptyDiag()]);
   const [expandedHistory, setExpandedHistory] = useState(null);
   const [editingHistory, setEditingHistory]   = useState({});
-  const [meds, setMeds]               = useState([{ name:"", dosage:"", frequency:"Once daily", duration:"", instructions:"" }]);
-  const [prescImages, setPrescImages] = useState([]);
-  const prescRef = useRef();
   const labRef   = useRef();
 
   // ── Report Upload State ────────────────────────────────────────────────────
@@ -232,15 +229,23 @@ const PatientDetailPage = () => {
         .join(" | ");
 
       const combinedNotes = diagList
-        .filter(d => d.findings || d.reason)
-        .map(d => d.findings || d.reason)
+        .filter(d => d.reason)
+        .map(d => d.reason)
         .join("\n---\n");
+
+      // Combine all medications from all diagnosis entries
+      const allMeds = diagList
+        .flatMap(d => d.medications || [])
+        .filter(m => m.name);
+      const combinedPrescription = allMeds
+        .map(m => `${m.name} ${m.dosage} — ${m.frequency} for ${m.duration}. ${m.instructions}`)
+        .join("\n");
 
       const body = {
         date:  new Date().toISOString().split("T")[0],
         notes: combinedNotes || "Consultation",
         diagnosis: combinedDiagnosis,
-        prescription: meds.filter(m => m.name).map(m => `${m.name} ${m.dosage} — ${m.frequency} for ${m.duration}. ${m.instructions}`).join("\n"),
+        prescription: combinedPrescription,
       };
       const res = await fetch(`${API_URL}/api/doctors/patients/${id}/consultation`, {
         method: "POST",
@@ -249,7 +254,8 @@ const PatientDetailPage = () => {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.message);
-      triggerSave(type === "diagnosis" ? "Diagnosis" : "Prescription");
+      triggerSave("Diagnosis & Prescriptions");
+      setDiagList([emptyDiag()]);
     } catch (err) {
       alert("Failed to save: " + err.message);
     } finally {
@@ -266,19 +272,24 @@ const PatientDetailPage = () => {
     return next;
   });
 
-  const addMed    = ()      => setMeds(prev => [...prev, { name:"", dosage:"", frequency:"Once daily", duration:"", instructions:"" }]);
-  const removeMed = (i)     => setMeds(prev => prev.filter((_,idx) => idx !== i));
-  const updateMed = (i,k,v) => setMeds(prev => {
+  // ── Medication helpers (within diagnosis entry) ────────────────────────────
+  const addMedToDiag = (diagIdx) => setDiagList(prev => {
     const next = [...prev];
-    next[i] = { ...next[i], [k]: v };
+    next[diagIdx].medications = [...(next[diagIdx].medications || []), emptyMed()];
     return next;
   });
-  const onPrescImg = (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    setPrescImages(p => [...p, { name:f.name, url:URL.createObjectURL(f) }]);
-    e.target.value = "";
-  };
+  const removeMedFromDiag = (diagIdx, medIdx) => setDiagList(prev => {
+    const next = [...prev];
+    next[diagIdx].medications = (next[diagIdx].medications || []).filter((_, idx) => idx !== medIdx);
+    return next;
+  });
+  const updateMedInDiag = (diagIdx, medIdx, k, v) => setDiagList(prev => {
+    const next = [...prev];
+    if (!next[diagIdx].medications) next[diagIdx].medications = [];
+    next[diagIdx].medications[medIdx] = { ...(next[diagIdx].medications[medIdx] || emptyMed()), [k]: v };
+    return next;
+  });
+
 
   // ── Report Upload Handler ──────────────────────────────────────────────────
   const handleReportUpload = async () => {
@@ -540,8 +551,7 @@ const PatientDetailPage = () => {
             {/* Tab bar */}
             <div style={{ display:"flex", gap:"8px", marginBottom:"16px", flexWrap:"wrap" }}>
               <TabBtn tKey="visits"       icon={<HistoryIcon />} lbl="Visit Records"  activeTab={tab} setTab={setTab} />
-              <TabBtn tKey="diagnosis"    icon={<DiagIcon />}    lbl="Diagnosis"      activeTab={tab} setTab={setTab} />
-              <TabBtn tKey="prescription" icon={<PrescIcon />}   lbl="Prescription"   activeTab={tab} setTab={setTab} />
+              <TabBtn tKey="diagnosis"    icon={<DiagIcon />}    lbl="Diagnosis & Prescriptions" activeTab={tab} setTab={setTab} />
               <TabBtn tKey="lab"          icon={<LabIcon />}     lbl="Lab Reports"    activeTab={tab} setTab={setTab} />
             </div>
 
@@ -576,11 +586,12 @@ const PatientDetailPage = () => {
                               {v._type === "consultation" ? "Consultation" : (v.type || "Visit")}
                             </span>
                           </div>
-                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"20px" }}>
+                          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:"20px" }}>
                             {[
-                              ["REASON / NOTES",  v.notes  || v.reason  || "—"],
-                              ["DIAGNOSIS",        v.diagnosis           || "—"],
-                              ["PRESCRIPTION",     v.prescription        || "—"],
+                              ["REASON FOR VISIT", v.reason_for_visit || v.reason || "—"],
+                              ["NOTES",            v.notes            || "—"],
+                              ["DIAGNOSIS",        v.diagnosis        || "—"],
+                              ["PRESCRIPTION",     v.prescription     || "—"],
                             ].map(([h,t]) => (
                               <div key={h}>
                                 <div style={{ fontSize:"11px", fontWeight:"700", color:C.textSecondary, textTransform:"uppercase", letterSpacing:"0.8px", marginBottom:"6px" }}>{h}</div>
@@ -684,7 +695,7 @@ const PatientDetailPage = () => {
                     <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
                       {pastDiagnoses.map((v, i) => {
                         const isOpen   = expandedHistory === i;
-                        const editVals = editingHistory[i] || { diagnosis: v.diagnosis || "", notes: v.notes || v.reason || "", prescription: v.prescription || "" };
+                        const editVals = editingHistory[i] || {};
                         const doctorName = typeof v.doctor === "object" ? (v.doctor?.name || doctorDisplayName) : (v.doctor || doctorDisplayName);
                         return (
                           <div key={i} style={{ border:`1.5px solid ${isOpen ? C.primary : C.border}`, borderRadius:"12px", background: isOpen ? C.white : C.bg, overflow:"hidden", transition:"border-color 0.2s, box-shadow 0.2s", boxShadow: isOpen ? "0 4px 16px rgba(28,74,62,0.10)" : "none" }}>
@@ -715,61 +726,187 @@ const PatientDetailPage = () => {
                                 </svg>
                               </div>
                             </div>
-                            {/* Expanded edit panel */}
-                            {isOpen && (
-                              <div style={{ borderTop:`1px solid ${C.border}`, padding:"20px" }}>
-                                <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
-                                  <div>
-                                    <label style={fldLabel}>Diagnosis</label>
-                                    <input value={editVals.diagnosis}
-                                      onChange={e => setEditingHistory(prev => ({ ...prev, [i]: { ...editVals, diagnosis: e.target.value } }))}
-                                      onFocus={() => setFocused(`eh_diag_${i}`)} onBlur={() => setFocused(null)}
-                                      style={inputSt(focused === `eh_diag_${i}`)} />
-                                  </div>
-                                  <div>
-                                    <label style={fldLabel}>Notes / Reason</label>
-                                    <textarea value={editVals.notes}
-                                      onChange={e => setEditingHistory(prev => ({ ...prev, [i]: { ...editVals, notes: e.target.value } }))}
-                                      rows={3} onFocus={() => setFocused(`eh_notes_${i}`)} onBlur={() => setFocused(null)}
-                                      style={{ ...inputSt(focused === `eh_notes_${i}`), resize:"vertical" }} />
-                                  </div>
-                                  <div>
-                                    <label style={fldLabel}>Prescription</label>
-                                    <textarea value={editVals.prescription}
-                                      onChange={e => setEditingHistory(prev => ({ ...prev, [i]: { ...editVals, prescription: e.target.value } }))}
-                                      rows={2} onFocus={() => setFocused(`eh_presc_${i}`)} onBlur={() => setFocused(null)}
-                                      style={{ ...inputSt(focused === `eh_presc_${i}`), resize:"vertical" }} />
-                                  </div>
-                                </div>
-                                <div style={{ display:"flex", justifyContent:"flex-end", gap:"10px", marginTop:"16px" }}>
-                                  <button onClick={() => { setExpandedHistory(null); setEditingHistory(prev => { const n={...prev}; delete n[i]; return n; }); }}
-                                    style={{ padding:"9px 20px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:"10px", fontSize:"13px", fontWeight:"600", color:C.textSecondary, fontFamily:F.body, cursor:"pointer" }}>
-                                    Cancel
-                                  </button>
-                                  <button
-                                    onClick={async () => {
-                                      const token = localStorage.getItem("doctor_token");
-                                      try {
-                                        const res = await fetch(`${API_URL}/api/doctors/patients/${id}/consultation`, {
-                                          method:"POST",
-                                          headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
-                                          body: JSON.stringify({ date: v.date || new Date().toISOString().split("T")[0], notes: editVals.notes, diagnosis: editVals.diagnosis, prescription: editVals.prescription }),
-                                        });
-                                        const json = await res.json();
-                                        if (!json.success) throw new Error(json.message);
-                                        triggerSave("Updated record");
-                                        setExpandedHistory(null);
-                                      } catch(err) { alert("Failed to update: " + err.message); }
-                                    }}
-                                    style={{ padding:"9px 20px", background:C.primary, border:"none", borderRadius:"10px", fontSize:"13px", fontWeight:"700", color:"#fff", fontFamily:F.body, cursor:"pointer", display:"flex", alignItems:"center", gap:"7px" }}
-                                    onMouseEnter={e => e.currentTarget.style.background=C.primaryLight}
-                                    onMouseLeave={e => e.currentTarget.style.background=C.primary}
-                                  >
-                                    <SaveIcon /> Save Changes
-                                  </button>
-                                </div>
-                              </div>
-                            )}
+                            {/* Expanded edit panel - MATCHES New Diagnosis form */}
+{isOpen && (() => {
+  // Parse existing medications from prescription string if not yet edited
+  const parsedMeds = (editVals.medications) ?? (
+    v.prescription
+      ? v.prescription.split("\n").filter(Boolean).map(line => {
+          const dashIdx = line.indexOf("—");
+          const left    = dashIdx > -1 ? line.slice(0, dashIdx).trim() : line;
+          const right   = dashIdx > -1 ? line.slice(dashIdx + 1).trim() : "";
+          // "Name Dosage" split on last space
+          const lastSpace = left.lastIndexOf(" ");
+          return {
+            name:         lastSpace > -1 ? left.slice(0, lastSpace) : left,
+            dosage:       lastSpace > -1 ? left.slice(lastSpace + 1) : "",
+            frequency:    "Once daily",
+            duration:     "",
+            instructions: right.replace(/^[^.]+\.\s*/, "").trim(),
+          };
+        })
+      : []
+  );
+
+  const setEH = (patch) =>
+    setEditingHistory(prev => ({ ...prev, [i]: { ...editVals, ...patch } }));
+
+  const setMeds = (meds) => setEH({ medications: meds });
+
+  // Parse primary / secondary from "Primary; Secondary" or "Primary | Secondary"
+  const diagParts  = (v.diagnosis || "").split(/[;|]/).map(s => s.trim());
+  const initPrimary   = editVals.primary   ?? (diagParts[0] || "");
+  const initSecondary = editVals.secondary ?? (diagParts[1] || "");
+  const initReason    = editVals.reason    ?? (v.reason_for_visit || v.notes || v.reason || "");
+  const initSeverity  = editVals.severity  ?? "Moderate";
+  const meds          = editVals.medications ?? parsedMeds;
+
+  return (
+    <div style={{ borderTop:`1px solid ${C.border}`, padding:"20px" }}>
+      <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
+
+        {/* Reason for Visit */}
+        <div>
+          <label style={fldLabel}>Reason for Visit</label>
+          <input value={initReason}
+            onChange={e => setEH({ reason: e.target.value })}
+            placeholder="e.g., Ongoing tiredness and periodic headaches"
+            onFocus={() => setFocused(`eh_reason_${i}`)} onBlur={() => setFocused(null)}
+            style={inputSt(focused === `eh_reason_${i}`)} />
+        </div>
+
+        {/* Primary + Secondary */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px" }}>
+          <div>
+            <label style={fldLabel}>Primary Diagnosis</label>
+            <input value={initPrimary}
+              onChange={e => setEH({ primary: e.target.value })}
+              placeholder="e.g., Migraine episodes"
+              onFocus={() => setFocused(`eh_primary_${i}`)} onBlur={() => setFocused(null)}
+              style={inputSt(focused === `eh_primary_${i}`)} />
+          </div>
+          <div>
+            <label style={fldLabel}>Secondary Diagnosis <span style={{ color:C.textSecondary, fontWeight:"400" }}>(Optional)</span></label>
+            <input value={initSecondary}
+              onChange={e => setEH({ secondary: e.target.value })}
+              placeholder="Additional conditions identified"
+              onFocus={() => setFocused(`eh_secondary_${i}`)} onBlur={() => setFocused(null)}
+              style={inputSt(focused === `eh_secondary_${i}`)} />
+          </div>
+        </div>
+
+        {/* Severity */}
+        <div>
+          <label style={fldLabel}>Severity</label>
+          <select value={initSeverity}
+            onChange={e => setEH({ severity: e.target.value })}
+            style={{ ...inputSt(false), cursor:"pointer" }}>
+            {["Mild","Moderate","Severe","Critical"].map(s => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+
+        {/* Medications */}
+        <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:"16px" }}>
+          <div style={{ fontSize:"13px", fontWeight:"700", color:C.textPrimary, marginBottom:"12px" }}>Prescribed Medications</div>
+          {meds.map((med, mIdx) => (
+            <div key={mIdx} style={{ border:`1px solid ${C.border}`, borderRadius:"8px", padding:"14px", marginBottom:"10px", background:C.bg }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
+                <div style={{ fontSize:"12px", fontWeight:"600", color:C.textSecondary }}>Medication #{mIdx + 1}</div>
+                <button onClick={() => setMeds(meds.filter((_, idx) => idx !== mIdx))}
+                  style={{ background:"#FFEBEE", border:"none", borderRadius:"6px", padding:"4px 8px", cursor:"pointer", color:C.error, display:"flex", alignItems:"center", gap:"4px", fontSize:"11px", fontWeight:"600" }}>
+                  <TrashIcon /> Remove
+                </button>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr", gap:"10px", marginBottom:"10px" }}>
+                {[
+                  ["Medication Name", "name",      "e.g., Sumatriptan", `eh_mn_${i}_${mIdx}`],
+                  ["Dosage",          "dosage",    "e.g., 50mg",        `eh_md_${i}_${mIdx}`],
+                ].map(([lbl, key, ph, fk]) => (
+                  <div key={key}>
+                    <label style={{ ...fldLabel, marginBottom:"4px" }}>{lbl}</label>
+                    <input value={med[key]} placeholder={ph}
+                      onChange={e => { const m=[...meds]; m[mIdx]={...m[mIdx],[key]:e.target.value}; setMeds(m); }}
+                      onFocus={() => setFocused(fk)} onBlur={() => setFocused(null)}
+                      style={inputSt(focused === fk)} />
+                  </div>
+                ))}
+                <div>
+                  <label style={{ ...fldLabel, marginBottom:"4px" }}>Frequency</label>
+                  <select value={med.frequency}
+                    onChange={e => { const m=[...meds]; m[mIdx]={...m[mIdx],frequency:e.target.value}; setMeds(m); }}
+                    style={{ ...inputSt(false), cursor:"pointer" }}>
+                    {["Once daily","Twice daily","Three times daily","Four times daily","As needed","Every 8 hours","Every 12 hours","Weekly"].map(f => <option key={f}>{f}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:"10px" }}>
+                {[
+                  ["Duration",             "duration",     "e.g., 30 days",    `eh_mdu_${i}_${mIdx}`],
+                  ["Special Instructions", "instructions", "e.g., Take with food", `eh_mi_${i}_${mIdx}`],
+                ].map(([lbl, key, ph, fk]) => (
+                  <div key={key}>
+                    <label style={{ ...fldLabel, marginBottom:"4px" }}>{lbl}</label>
+                    <input value={med[key]} placeholder={ph}
+                      onChange={e => { const m=[...meds]; m[mIdx]={...m[mIdx],[key]:e.target.value}; setMeds(m); }}
+                      onFocus={() => setFocused(fk)} onBlur={() => setFocused(null)}
+                      style={inputSt(focused === fk)} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          <button onClick={() => setMeds([...meds, emptyMed()])}
+            style={{ width:"100%", padding:"8px", background:"transparent", border:`1px dashed ${C.primaryGhost}`, borderRadius:"8px", cursor:"pointer", fontSize:"12px", fontWeight:"600", color:C.primary, fontFamily:F.body, display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor=C.primary; e.currentTarget.style.background=C.primaryGhost; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor=C.primaryGhost; e.currentTarget.style.background="transparent"; }}>
+            <PlusIcon /> Add Medication
+          </button>
+        </div>
+      </div>
+
+      {/* Footer buttons */}
+      <div style={{ display:"flex", justifyContent:"flex-end", gap:"10px", marginTop:"20px" }}>
+        <button onClick={() => { setExpandedHistory(null); setEditingHistory(prev => { const n={...prev}; delete n[i]; return n; }); }}
+          style={{ padding:"9px 20px", background:"transparent", border:`1px solid ${C.border}`, borderRadius:"10px", fontSize:"13px", fontWeight:"600", color:C.textSecondary, fontFamily:F.body, cursor:"pointer" }}>
+          Cancel
+        </button>
+        <button
+          onClick={async () => {
+            const token = localStorage.getItem("doctor_token");
+            try {
+              // Rebuild combined fields from structured edit values
+              const combinedDiag = [initPrimary, initSecondary].filter(Boolean).join("; ");
+              const combinedPresc = meds.filter(m => m.name).map(m =>
+                `${m.name} ${m.dosage} — ${m.frequency} for ${m.duration}. ${m.instructions}`
+              ).join("\n");
+
+              const res = await fetch(`${API_URL}/api/doctors/patients/${id}/consultation`, {
+                method: "POST",
+                headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+                body: JSON.stringify({
+                  date:         v.date || new Date().toISOString().split("T")[0],
+                  notes:        initReason,
+                  reason_for_visit: initReason,
+                  diagnosis:    combinedDiag,
+                  prescription: combinedPresc,
+                }),
+              });
+              const json = await res.json();
+              if (!json.success) throw new Error(json.message);
+              triggerSave("Updated record");
+              setExpandedHistory(null);
+            } catch(err) { alert("Failed to update: " + err.message); }
+          }}
+          style={{ padding:"9px 20px", background:C.primary, border:"none", borderRadius:"10px", fontSize:"13px", fontWeight:"700", color:"#fff", fontFamily:F.body, cursor:"pointer", display:"flex", alignItems:"center", gap:"7px" }}
+          onMouseEnter={e => e.currentTarget.style.background=C.primaryLight}
+          onMouseLeave={e => e.currentTarget.style.background=C.primary}
+        >
+          <SaveIcon /> Save Changes
+        </button>
+      </div>
+    </div>
+  );
+})()}
                           </div>
                         );
                       })}
@@ -819,13 +956,7 @@ const PatientDetailPage = () => {
                               onFocus={() => setFocused(`dp${i}`)} onBlur={() => setFocused(null)}
                               style={inputSt(focused === `dp${i}`)} />
                           </div>
-                          <div>
-                            <label style={fldLabel}>ICD Code</label>
-                            <input value={diag.icd} onChange={e => updateDiag(i, "icd", e.target.value)}
-                              placeholder="e.g., G43.909"
-                              onFocus={() => setFocused(`di${i}`)} onBlur={() => setFocused(null)}
-                              style={inputSt(focused === `di${i}`)} />
-                          </div>
+
                         </div>
                         <div>
                           <label style={fldLabel}>Secondary Diagnosis <span style={{ color:C.textSecondary, fontWeight:"400" }}>(Optional)</span></label>
@@ -841,13 +972,60 @@ const PatientDetailPage = () => {
                             {["Mild","Moderate","Severe","Critical"].map(s => <option key={s}>{s}</option>)}
                           </select>
                         </div>
-                        <div>
-                          <label style={fldLabel}>Clinical Findings / Notes</label>
-                          <textarea value={diag.findings} onChange={e => updateDiag(i, "findings", e.target.value)}
-                            placeholder="Describe physical examination findings, test results, and observations..."
-                            rows={4}
-                            onFocus={() => setFocused(`df${i}`)} onBlur={() => setFocused(null)}
-                            style={{ ...inputSt(focused === `df${i}`), resize:"vertical" }} />
+
+                        {/* ── Medications for this diagnosis ── */}
+                        <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:"16px" }}>
+                          <div style={{ fontSize:"13px", fontWeight:"700", color:C.textPrimary, marginBottom:"12px" }}>Prescribed Medications</div>
+                          {(diag.medications || []).map((med, mIdx) => (
+                            <div key={mIdx} style={{ border:`1px solid ${C.border}`, borderRadius:"8px", padding:"14px", marginBottom:"10px", background:C.bg }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
+                                <div style={{ fontSize:"12px", fontWeight:"600", color:C.textSecondary }}>Medication #{mIdx + 1}</div>
+                                {(diag.medications || []).length > 0 && (
+                                  <button onClick={() => removeMedFromDiag(i, mIdx)}
+                                    style={{ background:"#FFEBEE", border:"none", borderRadius:"6px", padding:"4px 8px", cursor:"pointer", color:C.error, display:"flex", alignItems:"center", gap:"4px", fontSize:"11px", fontWeight:"600" }}>
+                                    <TrashIcon /> Remove
+                                  </button>
+                                )}
+                              </div>
+                              <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr", gap:"10px", marginBottom:"10px" }}>
+                                <div>
+                                  <label style={{ ...fldLabel, marginBottom:"4px" }}>Medication Name</label>
+                                  <input value={med.name} onChange={e => updateMedInDiag(i, mIdx, "name", e.target.value)} placeholder="e.g., Sumatriptan"
+                                    onFocus={() => setFocused(`mn${i}${mIdx}`)} onBlur={() => setFocused(null)} style={inputSt(focused === `mn${i}${mIdx}`)} />
+                                </div>
+                                <div>
+                                  <label style={{ ...fldLabel, marginBottom:"4px" }}>Dosage</label>
+                                  <input value={med.dosage} onChange={e => updateMedInDiag(i, mIdx, "dosage", e.target.value)} placeholder="e.g., 50mg"
+                                    onFocus={() => setFocused(`md${i}${mIdx}`)} onBlur={() => setFocused(null)} style={inputSt(focused === `md${i}${mIdx}`)} />
+                                </div>
+                                <div>
+                                  <label style={{ ...fldLabel, marginBottom:"4px" }}>Frequency</label>
+                                  <select value={med.frequency} onChange={e => updateMedInDiag(i, mIdx, "frequency", e.target.value)} style={{ ...inputSt(false), cursor:"pointer" }}>
+                                    {["Once daily","Twice daily","Three times daily","Four times daily","As needed","Every 8 hours","Every 12 hours","Weekly"].map(f => <option key={f}>{f}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:"10px" }}>
+                                <div>
+                                  <label style={{ ...fldLabel, marginBottom:"4px" }}>Duration</label>
+                                  <input value={med.duration} onChange={e => updateMedInDiag(i, mIdx, "duration", e.target.value)} placeholder="e.g., 30 days"
+                                    onFocus={() => setFocused(`mdu${i}${mIdx}`)} onBlur={() => setFocused(null)} style={inputSt(focused === `mdu${i}${mIdx}`)} />
+                                </div>
+                                <div>
+                                  <label style={{ ...fldLabel, marginBottom:"4px" }}>Special Instructions</label>
+                                  <input value={med.instructions} onChange={e => updateMedInDiag(i, mIdx, "instructions", e.target.value)} placeholder="e.g., Take with food"
+                                    onFocus={() => setFocused(`mi${i}${mIdx}`)} onBlur={() => setFocused(null)} style={inputSt(focused === `mi${i}${mIdx}`)} />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <button onClick={() => addMedToDiag(i)}
+                            style={{ width:"100%", padding:"8px", background:"transparent", border:`1px dashed ${C.primaryGhost}`, borderRadius:"8px", cursor:"pointer", fontSize:"12px", fontWeight:"600", color:C.primary, fontFamily:F.body, display:"flex", alignItems:"center", justifyContent:"center", gap:"6px", transition:"all 0.2s" }}
+                            onMouseEnter={e => { e.currentTarget.style.borderColor=C.primary; e.currentTarget.style.background=C.primaryGhost; }}
+                            onMouseLeave={e => { e.currentTarget.style.borderColor=C.primaryGhost; e.currentTarget.style.background="transparent"; }}
+                          >
+                            <PlusIcon /> Add Medication
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -867,86 +1045,7 @@ const PatientDetailPage = () => {
               </div>
             )}
 
-            {/* ── PRESCRIPTION ── */}
-            {tab === "prescription" && (
-              <div style={{ background:C.white, borderRadius:"14px", border:`1px solid ${C.border}`, padding:"28px 32px", boxShadow:"0 2px 8px rgba(28,74,62,0.04)" }}>
-                <div style={{ fontSize:"16px", fontWeight:"700", color:C.textPrimary, fontFamily:F.display, marginBottom:"4px" }}>Prescription Entry</div>
-                <div style={{ fontSize:"13px", color:C.textSecondary, marginBottom:"20px" }}>Add medications — this will be saved and visible to the patient in their app</div>
-                <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:"24px" }}>
-                  {meds.map((med, i) => (
-                    <div key={i} style={{ border:`1px solid ${C.border}`, borderRadius:"12px", padding:"20px 24px", marginBottom:"14px" }}>
-                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"16px" }}>
-                        <div style={{ fontSize:"14px", fontWeight:"700", color:C.textPrimary }}>Medication #{i+1}</div>
-                        {meds.length > 1 && (
-                          <button onClick={() => removeMed(i)}
-                            style={{ background:"#FFEBEE", border:"none", borderRadius:"8px", padding:"6px 10px", cursor:"pointer", color:C.error, display:"flex", alignItems:"center", gap:"5px", fontSize:"12px", fontWeight:"600" }}>
-                            <TrashIcon /> Remove
-                          </button>
-                        )}
-                      </div>
-                      <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr 1fr", gap:"14px", marginBottom:"14px" }}>
-                        <div>
-                          <label style={fldLabel}>Medication Name</label>
-                          <input value={med.name} onChange={e=>updateMed(i,"name",e.target.value)} placeholder="e.g., Sumatriptan"
-                            onFocus={()=>setFocused(`mn${i}`)} onBlur={()=>setFocused(null)} style={inputSt(focused===`mn${i}`)} />
-                        </div>
-                        <div>
-                          <label style={fldLabel}>Dosage</label>
-                          <input value={med.dosage} onChange={e=>updateMed(i,"dosage",e.target.value)} placeholder="e.g., 50mg"
-                            onFocus={()=>setFocused(`md${i}`)} onBlur={()=>setFocused(null)} style={inputSt(focused===`md${i}`)} />
-                        </div>
-                        <div>
-                          <label style={fldLabel}>Frequency</label>
-                          <select value={med.frequency} onChange={e=>updateMed(i,"frequency",e.target.value)} style={{ ...inputSt(false), cursor:"pointer" }}>
-                            {["Once daily","Twice daily","Three times daily","Four times daily","As needed","Every 8 hours","Every 12 hours","Weekly"].map(f=><option key={f}>{f}</option>)}
-                          </select>
-                        </div>
-                      </div>
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 2fr", gap:"14px" }}>
-                        <div>
-                          <label style={fldLabel}>Duration</label>
-                          <input value={med.duration} onChange={e=>updateMed(i,"duration",e.target.value)} placeholder="e.g., 30 days"
-                            onFocus={()=>setFocused(`mdu${i}`)} onBlur={()=>setFocused(null)} style={inputSt(focused===`mdu${i}`)} />
-                        </div>
-                        <div>
-                          <label style={fldLabel}>Special Instructions</label>
-                          <input value={med.instructions} onChange={e=>updateMed(i,"instructions",e.target.value)} placeholder="e.g., Take with food"
-                            onFocus={()=>setFocused(`mi${i}`)} onBlur={()=>setFocused(null)} style={inputSt(focused===`mi${i}`)} />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  <button onClick={addMed}
-                    style={{ width:"100%", padding:"13px", background:"transparent", border:`1.5px dashed ${C.border}`, borderRadius:"12px", cursor:"pointer", fontSize:"14px", fontWeight:"600", color:C.textSecondary, fontFamily:F.body, display:"flex", alignItems:"center", justifyContent:"center", gap:"8px", marginBottom:"20px", transition:"all 0.2s" }}
-                    onMouseEnter={e=>{e.currentTarget.style.borderColor=C.primary;e.currentTarget.style.color=C.primary;}}
-                    onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.textSecondary;}}
-                  ><PlusIcon /> Add Another Medication</button>
 
-                  <div style={{ border:`1px solid ${C.border}`, borderRadius:"12px", padding:"20px 24px", marginBottom:"20px" }}>
-                    <div style={{ fontSize:"14px", fontWeight:"700", color:C.textPrimary, marginBottom:"4px", display:"flex", alignItems:"center", gap:"8px" }}>
-                      <ImageIcon /> Upload Prescription Image
-                    </div>
-                    <div style={{ fontSize:"13px", color:C.textSecondary, marginBottom:"14px" }}>Upload a scanned or photographed prescription</div>
-                    <input ref={prescRef} type="file" accept="image/*,application/pdf" style={{ display:"none" }} onChange={onPrescImg} />
-                    <button onClick={() => prescRef.current.click()}
-                      style={{ padding:"10px 20px", background:C.bg, border:`1.5px dashed ${C.border}`, borderRadius:"10px", cursor:"pointer", fontSize:"13px", fontWeight:"600", color:C.textSecondary, fontFamily:F.body, display:"flex", alignItems:"center", gap:"8px" }}
-                      onMouseEnter={e=>{e.currentTarget.style.borderColor=C.primary;e.currentTarget.style.color=C.primary;}}
-                      onMouseLeave={e=>{e.currentTarget.style.borderColor=C.border;e.currentTarget.style.color=C.textSecondary;}}
-                    ><UploadIcon /> Choose File</button>
-                    {prescImages.length > 0 && (
-                      <div style={{ marginTop:"12px", display:"flex", flexWrap:"wrap", gap:"10px" }}>
-                        {prescImages.map((img,i) => (
-                          <div key={i} style={{ display:"flex", alignItems:"center", gap:"8px", background:C.primaryGhost, border:`1px solid rgba(28,74,62,0.2)`, padding:"7px 14px", borderRadius:"8px" }}>
-                            <ImageIcon /><span style={{ fontSize:"13px", color:C.primary, fontWeight:"600" }}>{img.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <SaveFooter lbl="Submit Prescription" type="prescription" saving={saving} onDraft={() => triggerSave("Draft")} onSave={handleSaveConsultation} />
-                </div>
-              </div>
-            )}
 
             {/* ── LAB REPORTS ── */}
             {tab === "lab" && (

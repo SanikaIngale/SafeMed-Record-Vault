@@ -24,108 +24,123 @@ import { API_URL } from '../config/api';
 
 const API_BASE_URL = API_URL;
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
 const formatDate = (dateString) => {
   if (!dateString) return 'N/A';
   const date = new Date(dateString);
   const day = date.getDate().toString().padStart(2, '0');
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const month = months[date.getMonth()];
-  const year = date.getFullYear();
-  return `${day} ${month} ${year}`;
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${day} ${months[date.getMonth()]} ${date.getFullYear()}`;
 };
 
-const ConsultationCard = ({ consultation, onPress }) => (
-  <TouchableOpacity style={styles.card} onPress={onPress}>
-    <View style={styles.cardContent}>
-      <Text style={styles.clinicLabel}>{consultation.hospital || 'Hospital'}</Text>
-      <Text style={styles.cardLabel}>
-        Doctor: <Text style={styles.cardValue}>{consultation.doctor?.name || 'N/A'}</Text>
-      </Text>
-      <Text style={styles.cardLabel}>
-        Reason: <Text style={styles.cardValue}>{consultation.reason_for_visit || 'N/A'}</Text>
-      </Text>
-      {consultation.diagnosis ? (
-        <Text style={styles.cardLabel}>
-          Diagnosis: <Text style={styles.cardValue}>{consultation.diagnosis}</Text>
-        </Text>
-      ) : null}
-      <View style={styles.dateRow}>
-        <Text style={styles.cardLabel}>
-          Date: <Text style={styles.cardValue}>{formatDate(consultation.date)}</Text>
-        </Text>
-        <TouchableOpacity style={styles.detailsButton} onPress={onPress}>
-          <Text style={styles.detailsButtonText}>View Details</Text>
-        </TouchableOpacity>
+const getPrimaryDiagnosis = (consultation) => {
+  if (consultation.primary_diagnosis) return consultation.primary_diagnosis;
+  const raw = consultation.diagnosis || '';
+  if (!raw) return null;
+  return raw.split(' | ')[0].split(';')[0].trim() || null;
+};
+
+// ── Consultation Card ─────────────────────────────────────────────────────────
+const ConsultationCard = ({ consultation, onPress }) => {
+  const primaryDiagnosis = getPrimaryDiagnosis(consultation);
+  const doctorName       = consultation.doctor?.name || consultation.doctor || 'N/A';
+  const reasonForVisit   = consultation.reason_for_visit || consultation.notes || 'N/A';
+  const hospital         = consultation.hospital || null;
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+      {/* Date strip */}
+      <View style={styles.cardDateStrip}>
+        <Icon name="calendar" size={13} color="#1E4B46" />
+        <Text style={styles.cardDate}>{formatDate(consultation.date || consultation.created_at)}</Text>
+        {hospital ? <Text style={styles.cardHospital}> · {hospital}</Text> : null}
       </View>
-    </View>
-  </TouchableOpacity>
-);
 
+      <View style={styles.cardBody}>
+        {/* Doctor */}
+        <View style={styles.fieldRow}>
+          <View style={styles.fieldIcon}>
+            <Icon name="doctor" size={14} color="#1E4B46" />
+          </View>
+          <View style={styles.fieldContent}>
+            <Text style={styles.fieldLabel}>Doctor</Text>
+            <Text style={styles.fieldValue}>{doctorName}</Text>
+          </View>
+        </View>
+
+        {/* Reason for Visit */}
+        <View style={styles.fieldRow}>
+          <View style={styles.fieldIcon}>
+            <Icon name="clipboard-text-outline" size={14} color="#1E4B46" />
+          </View>
+          <View style={styles.fieldContent}>
+            <Text style={styles.fieldLabel}>Reason for Visit</Text>
+            <Text style={styles.fieldValue} numberOfLines={2}>{reasonForVisit}</Text>
+          </View>
+        </View>
+
+        {/* Primary Diagnosis */}
+        {primaryDiagnosis ? (
+          <View style={styles.fieldRow}>
+            <View style={styles.fieldIcon}>
+              <Icon name="stethoscope" size={14} color="#1E4B46" />
+            </View>
+            <View style={styles.fieldContent}>
+              <Text style={styles.fieldLabel}>Primary Diagnosis</Text>
+              <Text style={styles.fieldValue} numberOfLines={2}>{primaryDiagnosis}</Text>
+            </View>
+          </View>
+        ) : null}
+      </View>
+
+      {/* View Details */}
+      <TouchableOpacity style={styles.detailsButton} onPress={onPress} activeOpacity={0.8}>
+        <Text style={styles.detailsButtonText}>View Details</Text>
+        <Icon name="arrow-right" size={14} color="#fff" />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+};
+
+// ── Main Screen ───────────────────────────────────────────────────────────────
 const ConsultationHistoryScreen = ({ navigation }) => {
-  const [activeNav, setActiveNav] = useState('Home');
+  const [activeNav,     setActiveNav]     = useState('Home');
   const [consultations, setConsultations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading,       setLoading]       = useState(true);
+  const [refreshing,    setRefreshing]    = useState(false);
 
-  let [fontsLoaded] = useFonts({
-    Poppins_400Regular,
-    Poppins_600SemiBold,
-    Poppins_700Bold,
-  });
+  const [fontsLoaded] = useFonts({ Poppins_400Regular, Poppins_600SemiBold, Poppins_700Bold });
 
-  useEffect(() => {
-    loadConsultations();
-  }, []);
+  useEffect(() => { loadConsultations(); }, []);
 
   const loadConsultations = async () => {
     try {
       setLoading(true);
-
-      // Try patient_id directly first (faster)
       let patientId = await AsyncStorage.getItem('patient_id');
 
       if (!patientId) {
-        // Fall back to looking up via email
         const email = await AsyncStorage.getItem('userEmail');
-        if (!email) {
-          Alert.alert('Error', 'Please login again');
-          navigation.replace('SignIn');
-          return;
-        }
-
+        if (!email) { Alert.alert('Error', 'Please login again'); navigation.replace('SignIn'); return; }
         const userResponse = await fetch(`${API_BASE_URL}/api/user/email/${email}`);
         const userData = await userResponse.json();
-
-        if (!userData.success || !userData.patient_id) {
-          throw new Error('Failed to fetch user data');
-        }
-
+        if (!userData.success || !userData.patient_id) throw new Error('Failed to fetch user data');
         patientId = userData.patient_id;
         await AsyncStorage.setItem('patient_id', patientId);
       }
 
-      // Get patient data including consultations
       const patientResponse = await fetch(`${API_BASE_URL}/api/patients/${patientId}`);
       const patientData = await patientResponse.json();
 
-     if (patientData.success) {
-  // Parse consultations — may come as string from DB
-  let raw = patientData.consultations || [];
-  if (typeof raw === 'string') {
-    try { raw = JSON.parse(raw); } catch { raw = []; }
-  }
-  if (!Array.isArray(raw)) raw = [];
-
-  const sorted = raw.sort(
-    (a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at)
-  );
-  setConsultations(sorted);
-  console.log('✅ Consultations loaded:', sorted.length);
-} else {
-  throw new Error(patientData.message || 'Failed to load consultations');
-}
-
+      if (patientData.success) {
+        let raw = patientData.consultations || [];
+        if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch { raw = []; } }
+        if (!Array.isArray(raw)) raw = [];
+        setConsultations(
+          raw.sort((a, b) => new Date(b.date || b.created_at) - new Date(a.date || a.created_at))
+        );
+      } else {
+        throw new Error(patientData.message || 'Failed to load consultations');
+      }
     } catch (error) {
       console.error('❌ Error loading consultations:', error);
       Alert.alert('Error', 'Failed to load consultation history. Please try again.');
@@ -135,34 +150,25 @@ const ConsultationHistoryScreen = ({ navigation }) => {
     }
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadConsultations();
-  };
+  const onRefresh = () => { setRefreshing(true); loadConsultations(); };
 
-  const handleViewDetails = (consultation) => {
-    navigation.navigate('VisitSummary', { consultation });
-  };
+  if (!fontsLoaded) return null;
 
-  const handleNavigation = (navName) => {
-    setActiveNav(navName);
-  };
-
-  if (!fontsLoaded) {
-    return null;
-  }
+  const headerEl = (
+    <View style={styles.header}>
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <Icon name="arrow-left" size={24} color="#333" />
+      </TouchableOpacity>
+      <Text style={styles.headerTitle}>Consultation History</Text>
+      <View style={{ width: 34 }} />
+    </View>
+  );
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Icon name="arrow-left" size={24} color="#333" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Consultation History</Text>
-          <View style={{ width: 24 }} />
-        </View>
+        {headerEl}
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#1E4B46" />
           <Text style={styles.loadingText}>Loading consultations...</Text>
@@ -174,156 +180,72 @@ const ConsultationHistoryScreen = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Icon name="arrow-left" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Consultation History</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      {headerEl}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#1E4B46']}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1E4B46']} />}
       >
+        {consultations.length > 0 ? (
+          <Text style={styles.countLabel}>
+            {consultations.length} consultation{consultations.length !== 1 ? 's' : ''} found
+          </Text>
+        ) : null}
+
         {consultations.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Icon name="clipboard-text-outline" size={64} color="#ccc" />
             <Text style={styles.emptyText}>No consultation records yet</Text>
-            <Text style={styles.emptySubtext}>
-              Your consultation history will appear here
-            </Text>
+            <Text style={styles.emptySubtext}>Your consultation history will appear here</Text>
           </View>
         ) : (
           consultations.map((consultation, index) => (
             <ConsultationCard
               key={consultation.consultation_id || index}
               consultation={consultation}
-              onPress={() => handleViewDetails(consultation)}
+              onPress={() => navigation.navigate('VisitSummary', { consultation })}
             />
           ))
         )}
       </ScrollView>
 
-      <BottomNavigation
-        activeNav={activeNav}
-        onNavigate={handleNavigation}
-        navigation={navigation}
-      />
+      <BottomNavigation activeNav={activeNav} onNavigate={setActiveNav} navigation={navigation} />
     </SafeAreaView>
   );
 };
 
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#1E4B46',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-  },
-  emptyText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#666',
-    marginTop: 16,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#999',
-    marginTop: 8,
-    textAlign: 'center',
-  },
-  dateRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    paddingTop: 55,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1e4b46',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 20,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  clinicLabel: {
-    fontSize: 17,
-    color: '#1e4b46',
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  cardContent: {},
-  cardLabel: {
-    fontSize: 15,
-    color: '#1e4b46',
-    fontWeight: '600',
-    marginBottom: 8,
-    flex: 1,
-  },
-  cardValue: {
-    fontWeight: '400',
-    color: '#1e4b46',
-  },
-  detailsButton: {
-    backgroundColor: '#1e4b46',
-    borderRadius: 20,
-    paddingVertical: 7,
-    paddingHorizontal: 15,
-    marginLeft: 10,
-  },
-  detailsButtonText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
+  container:        { flex: 1, backgroundColor: '#f5f5f5' },
+  header:           { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15, paddingTop: 55, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
+  backBtn:          { padding: 5 },
+  headerTitle:      { fontSize: 18, fontFamily: 'Poppins_700Bold', fontWeight: '600', color: '#1e4b46' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  loadingText:      { marginTop: 12, fontSize: 14, color: '#1E4B46', fontFamily: 'Poppins_400Regular' },
+  emptyContainer:   { alignItems: 'center', justifyContent: 'center', paddingVertical: 80, paddingHorizontal: 40 },
+  emptyText:        { fontSize: 17, fontWeight: '600', color: '#666', marginTop: 16, textAlign: 'center', fontFamily: 'Poppins_600SemiBold' },
+  emptySubtext:     { fontSize: 13, color: '#999', marginTop: 6, textAlign: 'center', fontFamily: 'Poppins_400Regular' },
+  scrollView:       { flex: 1 },
+  scrollContent:    { padding: 16, paddingBottom: 24 },
+  countLabel:       { fontSize: 12, color: '#999', fontFamily: 'Poppins_400Regular', marginBottom: 12, paddingHorizontal: 4 },
+
+  // Card
+  card:          { backgroundColor: '#FFFFFF', borderRadius: 14, marginBottom: 14, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.07, shadowRadius: 6, elevation: 3, overflow: 'hidden' },
+  cardDateStrip: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F0F8F6', paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E8F5F3', gap: 6 },
+  cardDate:      { fontSize: 13, fontWeight: '600', color: '#1E4B46', fontFamily: 'Poppins_600SemiBold' },
+  cardHospital:  { fontSize: 12, color: '#6B9E96', fontFamily: 'Poppins_400Regular', flex: 1 },
+  cardBody:      { paddingHorizontal: 16, paddingTop: 14, paddingBottom: 6 },
+
+  // Field rows
+  fieldRow:     { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
+  fieldIcon:    { width: 28, height: 28, borderRadius: 8, backgroundColor: '#E8F5F3', justifyContent: 'center', alignItems: 'center', flexShrink: 0, marginTop: 1 },
+  fieldContent: { flex: 1 },
+  fieldLabel:   { fontSize: 11, color: '#999', fontFamily: 'Poppins_600SemiBold', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 },
+  fieldValue:   { fontSize: 14, color: '#1e4b46', fontFamily: 'Poppins_400Regular', lineHeight: 20 },
+
+  // Button
+  detailsButton:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#1E4B46', marginHorizontal: 16, marginBottom: 16, marginTop: 8, paddingVertical: 10, borderRadius: 10, gap: 6 },
+  detailsButtonText: { color: '#fff', fontSize: 13, fontWeight: '600', fontFamily: 'Poppins_600SemiBold' },
 });
 
 export default ConsultationHistoryScreen;
