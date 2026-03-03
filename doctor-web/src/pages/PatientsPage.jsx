@@ -1,23 +1,16 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-// ── Theme ─────────────────────────────────────────────────────────────────────
 const C = {
-  bg: "#F0F4F3",
-  primary: "#1C4A3E",
-  primaryLight: "#2D6A5A",
-  primaryGhost: "#E8F2EF",
-  error: "#C62828",
-  textPrimary: "#1A1A1A",
-  textSecondary: "#6B7280",
-  border: "#E5E7EB",
-  white: "#FFFFFF",
+  bg: "#F0F4F3", primary: "#1C4A3E", primaryLight: "#2D6A5A",
+  primaryGhost: "#E8F2EF", error: "#C62828",
+  textPrimary: "#1A1A1A", textSecondary: "#6B7280",
+  border: "#E5E7EB", white: "#FFFFFF",
 };
 const F = {
   display: "'Georgia','Times New Roman',serif",
   body: "'Helvetica Neue',Arial,sans-serif",
 };
-
 const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:5001";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -31,13 +24,34 @@ const avatarColor = (name) => {
   return palette[h];
 };
 
-// Safely converts any value (including objects) to a display string
 const safeStr = (val, fallback = "—") => {
   if (val === null || val === undefined) return fallback;
   if (typeof val === "string")  return val.trim() || fallback;
   if (typeof val === "number")  return String(val);
   if (typeof val === "object")  return val.name || val.condition || val.label || val.value || fallback;
   return String(val);
+};
+
+/** "2d left" / "5h left" / "30m left" / "Expired" */
+const timeLeft = (iso) => {
+  if (!iso) return null;
+  const ms = new Date(iso) - Date.now();
+  if (ms <= 0) return "Expired";
+  const m = Math.floor(ms / 60000);
+  const h = Math.floor(ms / 3600000);
+  const d = Math.floor(ms / 86400000);
+  if (d  >= 1) return `${d}d left`;
+  if (h  >= 1) return `${h}h left`;
+  return `${m}m left`;
+};
+
+const expiryChipColor = (iso) => {
+  if (!iso) return { color: C.textSecondary, bg: C.bg, border: C.border };
+  const ms = new Date(iso) - Date.now();
+  if (ms <= 0)       return { color: "#9E9E9E", bg: "#F5F5F5",  border: "#E0E0E0" };
+  if (ms < 3_600_000)  return { color: "#C62828", bg: "#FFEBEE",  border: "#FFCDD2" }; // < 1 h
+  if (ms < 86_400_000) return { color: "#E65100", bg: "#FFF3E0",  border: "#FFCC80" }; // < 1 d
+  return                      { color: "#2E7D32", bg: "#E8F5E9",  border: "#A5D6A7" }; // > 1 d
 };
 
 // ── Icons ─────────────────────────────────────────────────────────────────────
@@ -51,16 +65,32 @@ const FilterIcon   = () => <svg width="15" height="15" viewBox="0 0 24 24" fill=
 const EyeIcon      = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>;
 const ChevronIcon  = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>;
 const CheckSmIcon  = () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+const ClockIcon    = () => <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
 
-const ConsentBadge = () => (
-  <span style={{ display:"inline-flex", alignItems:"center", gap:"5px", padding:"5px 12px", background:"#E8F5E9", color:"#2E7D32", border:"1.5px solid #A5D6A7", borderRadius:"999px", fontSize:"12px", fontWeight:"600", fontFamily:F.body, whiteSpace:"nowrap" }}>
-    <CheckSmIcon /> Granted
-  </span>
-);
+// ── Access chip shown in the Consent column ───────────────────────────────────
+const AccessChip = ({ expiresAt }) => {
+  const label = timeLeft(expiresAt);
+  const chip  = expiryChipColor(expiresAt);
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"4px" }}>
+      {/* "Granted" green pill */}
+      <span style={{ display:"inline-flex", alignItems:"center", gap:"5px", padding:"4px 10px", background:"#E8F5E9", color:"#2E7D32", border:"1.5px solid #A5D6A7", borderRadius:"999px", fontSize:"12px", fontWeight:"600", fontFamily:F.body, whiteSpace:"nowrap" }}>
+        <CheckSmIcon /> Granted
+      </span>
+      {/* Expiry countdown pill */}
+      {label && (
+        <span style={{ display:"inline-flex", alignItems:"center", gap:"4px", padding:"3px 8px", background:chip.bg, color:chip.color, border:`1.5px solid ${chip.border}`, borderRadius:"999px", fontSize:"11px", fontWeight:"700", fontFamily:F.body, whiteSpace:"nowrap" }}>
+          <ClockIcon /> {label}
+        </span>
+      )}
+    </div>
+  );
+};
 
 const SkeletonRow = () => (
   <tr>
-    {[220, 60, 90, 55, 130, 50].map((w, i) => (
+    {[220, 60, 90, 55, 130, 80, 50].map((w, i) => (
       <td key={i} style={{ padding:"18px 16px" }}>
         <div style={{ height:"13px", width:`${w}px`, background:"#E5E7EB", borderRadius:"6px", animation:"pulse 1.4s ease-in-out infinite" }} />
       </td>
@@ -68,6 +98,7 @@ const SkeletonRow = () => (
   </tr>
 );
 
+// ── Sidebar (unchanged) ───────────────────────────────────────────────────────
 const Sidebar = ({ active, onNav, onLogout }) => {
   const navItems = [
     { key:"dashboard", label:"Dashboard",  icon:<HomeIcon />     },
@@ -124,6 +155,13 @@ const PatientsPage = () => {
   const [hoveredRow,   setHoveredRow]   = useState(null);
   const [doctorData,   setDoctorData]   = useState(null);
 
+  // ⭐ Tick every 60 s so the countdown chips re-render without a page refresh
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   useEffect(() => {
     try {
       const raw = localStorage.getItem("doctorData");
@@ -138,10 +176,7 @@ const PatientsPage = () => {
         if (!token) { navigate("/login"); return; }
 
         const res = await fetch(`${API_BASE}/api/doctors/my-patients`, {
-          headers: {
-            "Authorization": `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
+          headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
         });
 
         if (res.status === 401 || res.status === 403) {
@@ -154,17 +189,15 @@ const PatientsPage = () => {
         const json = await res.json();
         if (!json.success) throw new Error(json.message || "Failed to fetch patients");
 
-        // ── safeStr guards against the API returning objects like
-        //    { doctor_id, name } where a plain string is expected ──────────────
+        // ⭐ Also map expires_at so AccessChip can display it
         const mapped = (json.patients || []).map(p => ({
-          id:        safeStr(p.patient_id),
-          name:      safeStr(p.name, "Unknown"),
-          age:       p.age ?? "—",
-          gender:    p.gender
-                       ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1)
-                       : "—",
-          bloodType: safeStr(p.bloodType),
-          condition: safeStr(p.condition),  // ← was crashing when this was an object
+          id:         safeStr(p.patient_id),
+          name:       safeStr(p.name, "Unknown"),
+          age:        p.age ?? "—",
+          gender:     p.gender ? p.gender.charAt(0).toUpperCase() + p.gender.slice(1) : "—",
+          bloodType:  safeStr(p.bloodType),
+          condition:  safeStr(p.condition),
+          expires_at: p.expires_at || null,   // ⭐ from backend
         }));
 
         setPatients(mapped);
@@ -179,37 +212,20 @@ const PatientsPage = () => {
     fetchPatients();
   }, [navigate]);
 
-  const handleNav = (key) => {
-    if (key === "dashboard") navigate("/dashboard");
-    else if (key === "profile") navigate("/profile");
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem("doctor_token");
-    localStorage.removeItem("doctorData");
-    navigate("/login");
-  };
+  const handleNav    = (key) => { if (key === "dashboard") navigate("/dashboard"); else if (key === "profile") navigate("/profile"); };
+  const handleLogout = ()    => { localStorage.removeItem("doctor_token"); localStorage.removeItem("doctorData"); navigate("/login"); };
 
   const filtered = patients.filter(p => {
     const q = search.trim().toLowerCase();
-    const matchSearch =
-      !q ||
-      p.name.toLowerCase().includes(q) ||
-      p.id.toLowerCase().includes(q) ||
-      p.condition.toLowerCase().includes(q);
-    const matchGender = genderFilter === "All" || p.gender === genderFilter;
+    const matchSearch  = !q || p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || p.condition.toLowerCase().includes(q);
+    const matchGender  = genderFilter === "All" || p.gender === genderFilter;
     return matchSearch && matchGender;
   });
 
-  const filterOptions = ["All", "Male", "Female", "Other"];
-
-  const doctorInitials    = doctorData?.name
-    ? doctorData.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2)
-    : "DR";
+  const filterOptions     = ["All", "Male", "Female", "Other"];
+  const doctorInitials    = doctorData?.name ? doctorData.name.split(" ").map(w => w[0]).join("").toUpperCase().slice(0, 2) : "DR";
   const doctorDisplayName = doctorData?.name ? `Dr. ${doctorData.name}` : "Doctor";
-  const doctorSpec        = Array.isArray(doctorData?.specializations)
-    ? doctorData.specializations[0]
-    : (doctorData?.specializations || "Doctor");
+  const doctorSpec        = Array.isArray(doctorData?.specializations) ? doctorData.specializations[0] : (doctorData?.specializations || "Doctor");
 
   const th = { padding:"14px 16px", fontSize:"12px", fontWeight:"700", color:C.textSecondary, fontFamily:F.body, textTransform:"uppercase", letterSpacing:"0.7px", textAlign:"left", background:C.bg, borderBottom:`1px solid ${C.border}`, whiteSpace:"nowrap" };
 
@@ -219,13 +235,12 @@ const PatientsPage = () => {
         @keyframes fadeUp { from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);} }
         @keyframes pulse  { 0%,100%{opacity:1;}50%{opacity:0.4;} }
         * { box-sizing:border-box; }
-        .row-hover { transition:background 0.15s; }
+        .row-hover   { transition:background 0.15s; }
         .action-btn:hover { background:${C.primaryGhost} !important; color:${C.primary} !important; }
         .filter-opt:hover { background:${C.primaryGhost} !important; }
       `}</style>
 
       <div style={{ display:"flex", minHeight:"100vh", background:C.bg, fontFamily:F.body }}>
-
         <Sidebar active="patients" onNav={handleNav} onLogout={handleLogout} />
 
         <div style={{ flex:1, display:"flex", flexDirection:"column", minHeight:"100vh" }}>
@@ -234,16 +249,12 @@ const PatientsPage = () => {
           <div style={{ background:C.white, borderBottom:`1px solid ${C.border}`, padding:"16px 32px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
             <div>
               <div style={{ fontSize:"20px", fontWeight:"800", color:C.textPrimary, fontFamily:F.display }}>My Patients</div>
-              <div style={{ fontSize:"12px", color:C.textSecondary, marginTop:"2px" }}>
-                Patients who have approved your access request
-              </div>
+              <div style={{ fontSize:"12px", color:C.textSecondary, marginTop:"2px" }}>Patients who have approved your access request</div>
             </div>
             <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
               <div style={{ cursor:"pointer" }}><BellIcon /></div>
               <div style={{ display:"flex", alignItems:"center", gap:"10px", cursor:"pointer" }} onClick={() => navigate("/profile")}>
-                <div style={{ width:"36px", height:"36px", borderRadius:"50%", background:C.primary, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"12px", fontWeight:"800", color:"#fff" }}>
-                  {doctorInitials}
-                </div>
+                <div style={{ width:"36px", height:"36px", borderRadius:"50%", background:C.primary, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"12px", fontWeight:"800", color:"#fff" }}>{doctorInitials}</div>
                 <div>
                   <div style={{ fontSize:"13px", fontWeight:"700", color:C.textPrimary, lineHeight:1.2 }}>{doctorDisplayName}</div>
                   <div style={{ fontSize:"11px", color:C.textSecondary }}>{doctorSpec}</div>
@@ -255,28 +266,21 @@ const PatientsPage = () => {
           {/* Content */}
           <div style={{ padding:"28px 32px", flex:1, animation:"fadeUp 0.4s ease" }}>
 
-            {/* Controls row */}
+            {/* Controls */}
             <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"20px" }}>
               <div style={{ flex:1, display:"flex", alignItems:"center", gap:"10px", background:C.white, border:`1px solid ${C.border}`, borderRadius:"10px", padding:"0 16px", height:"44px", boxShadow:"0 1px 4px rgba(28,74,62,0.05)" }}>
                 <span style={{ color:C.textSecondary, display:"flex", flexShrink:0 }}><SearchIcon /></span>
-                <input
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search by name, ID, or condition..."
-                  style={{ flex:1, border:"none", outline:"none", background:"transparent", fontSize:"14px", color:C.textPrimary, fontFamily:F.body }}
-                />
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name, ID, or condition..."
+                  style={{ flex:1, border:"none", outline:"none", background:"transparent", fontSize:"14px", color:C.textPrimary, fontFamily:F.body }} />
               </div>
 
               <div style={{ position:"relative" }}>
-                <button
-                  onClick={() => setFilterOpen(o => !o)}
+                <button onClick={() => setFilterOpen(o => !o)}
                   style={{ display:"flex", alignItems:"center", gap:"8px", padding:"0 16px", height:"44px", background:C.white, border:`1px solid ${C.border}`, borderRadius:"10px", cursor:"pointer", fontSize:"14px", fontWeight:"500", color:C.textPrimary, fontFamily:F.body, boxShadow:"0 1px 4px rgba(28,74,62,0.05)" }}
                   onMouseEnter={e => e.currentTarget.style.borderColor = C.primary}
                   onMouseLeave={e => e.currentTarget.style.borderColor = C.border}
                 >
-                  <FilterIcon />
-                  {genderFilter === "All" ? "All Genders" : genderFilter}
-                  <ChevronIcon />
+                  <FilterIcon /> {genderFilter === "All" ? "All Genders" : genderFilter} <ChevronIcon />
                 </button>
                 {filterOpen && (
                   <div style={{ position:"absolute", top:"calc(100% + 6px)", left:0, background:C.white, border:`1px solid ${C.border}`, borderRadius:"10px", boxShadow:"0 8px 24px rgba(0,0,0,0.12)", zIndex:100, minWidth:"150px", overflow:"hidden" }}>
@@ -308,7 +312,7 @@ const PatientsPage = () => {
                     <th style={th}>Age / Gender</th>
                     <th style={th}>Blood Type</th>
                     <th style={th}>Condition</th>
-                    <th style={th}>Consent</th>
+                    <th style={th}>Access</th>
                     <th style={{ ...th, textAlign:"right", paddingRight:"24px" }}>Actions</th>
                   </tr>
                 </thead>
@@ -330,8 +334,7 @@ const PatientsPage = () => {
                       </td>
                     </tr>
                   ) : filtered.map((p, i) => (
-                    <tr key={p.id}
-                      className="row-hover"
+                    <tr key={p.id} className="row-hover"
                       onMouseEnter={() => setHoveredRow(p.id)}
                       onMouseLeave={() => setHoveredRow(null)}
                       style={{ background:hoveredRow===p.id?"#F8FBF9":C.white, borderBottom:i<filtered.length-1?`1px solid ${C.border}`:"none" }}
@@ -352,11 +355,13 @@ const PatientsPage = () => {
                         </span>
                       </td>
                       <td style={{ padding:"16px", fontSize:"14px", color:C.textPrimary }}>{p.condition}</td>
-                      <td style={{ padding:"16px" }}><ConsentBadge /></td>
+                      {/* ⭐ Access column with expiry countdown */}
+                      <td style={{ padding:"16px" }}>
+                        <AccessChip expiresAt={p.expires_at} />
+                      </td>
                       <td style={{ padding:"16px 24px 16px 16px" }}>
                         <div style={{ display:"flex", justifyContent:"flex-end" }}>
-                          <button className="action-btn"
-                            title="View patient records"
+                          <button className="action-btn" title="View patient records"
                             onClick={() => navigate(`/patients/${p.id}`)}
                             style={{ width:"32px", height:"32px", borderRadius:"8px", border:`1px solid ${C.border}`, background:"transparent", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", color:C.textSecondary, transition:"background 0.15s,color 0.15s" }}>
                             <EyeIcon />
